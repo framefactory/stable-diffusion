@@ -1,7 +1,7 @@
 /* COLORS
  *
  * text color: #e0e0e0
- * text disabled: #b0b0b0
+ * text disabled: #a0a0a0
  * application background: #282828
  * widget background: #404040
  * control background: #343434
@@ -21,9 +21,19 @@ QMainWindow {
 	background: #282828;
 }
 QMainWindow::separator {
-	background-color: #282828;
+	background-color: #343434;
 	width: 3px;
 	height: 3px;
+}
+
+/* MENU BAR */
+
+QMenuBar, QMenu {
+	background: #343434;
+	color: #c0c0c0;
+}
+QMenuBar {
+	padding: 4px 0;
 }
 
 /* DOCK WIDGET */
@@ -62,7 +72,7 @@ QTabBar {
 	background-color: #282828;
 }
 QTabBar::tab {
-	color: #b0b0b0;
+	color: #a0a0a0;
 	background-color: #343434;
 	border-bottom: 1px solid #484848;
 	padding: 5px 0;
@@ -111,10 +121,18 @@ QLineEdit, QTextEdit, QCheckBox::indicator {
 }
 
 QCheckBox::indicator:checked {
-	border: 1px solid #b0b0b0;
-	background-color: #b0b0b0;
+	border: 1px solid #a0a0a0;
+	background-color: #a0a0a0;
 }
 
 QTextEdit:focus, QLineEdit:focus, QDateEdit:focus, QDateTimeEdit:focus {
 	border-color: #0e78be;
+}
+
+/* CUSTOM */
+
+ImageThumb {
+	color: #a0a0a0;
+	background-color: #343434;
+	border: 1px solid #606060;
 }

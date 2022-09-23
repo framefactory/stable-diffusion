@@ -12,7 +12,8 @@ from ldm.generate import Generate
 from PySide6.QtCore import (
     QObject,
     QThread,
-    Signal
+    Signal,
+    Slot
 )
 
 from .params import ModelParams, ImageParams, ImageResult
@@ -41,7 +42,7 @@ class Engine(QThread):
         self._params: Optional[ImageParams] = None
         self._stop_requested = False
 
-    def post_job(self, params: ImageParams):
+    def generate(self, params: ImageParams):
         self._queue.put(deepcopy(params))
 
     def run(self):

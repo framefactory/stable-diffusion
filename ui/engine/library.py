@@ -12,7 +12,8 @@ from PySide6.QtCore import (
     Signal
 )
 
-from .params import ImageParams, ImageItem
+from .params import ImageParams
+from .image_document import ImageDocument
 
 
 class Library(QObject):
@@ -21,7 +22,7 @@ class Library(QObject):
         self.base_path = Path(base_path)
         os.makedirs(self.base_path, exist_ok=True)
 
-    def save_image(self, image: Image, params: ImageParams) -> ImageItem:
+    def save_image(self, image: Image, params: ImageParams) -> ImageDocument:
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
         random.seed()
         chars = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -30,7 +31,7 @@ class Library(QObject):
         image_path = f"{base_name}.png"
         data_path = f"{base_name}.json"
 
-        item = ImageItem(image, image_path, params)
+        item = ImageDocument(image, image_path, params)
         image.save(self.base_path / image_path)
 
         with open(self.base_path / data_path, "w") as json_file:

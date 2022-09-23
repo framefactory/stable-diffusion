@@ -54,22 +54,6 @@ class ImageParams(DataClass):
     upscale: Optional[Tuple[int, float]] = None # (2, 0.75)
 
 @dataclass
-class ImageItem:
-    image: Image
-    path: str
-    params: ImageParams
-    rating: int = 0
-    tags: List[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return {
-            "path": self.path,
-            "params": self.params.to_dict(),
-            "rating": self.rating,
-            "tags": copy(self.tags)
-        }
-
-@dataclass
 class ImageResult:
     """
     Result from image generation

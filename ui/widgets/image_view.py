@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PIL.Image import Image
 from PIL.ImageQt import ImageQt
 
@@ -18,9 +20,14 @@ from PySide6.QtWidgets import (
     QSizePolicy
 )
 
-class DocumentView(QMdiSubWindow):
-    def __init__(self, parent: QWidget):
+from ui.engine.image_document import ImageDocument
+
+
+class ImageDocumentView(QMdiSubWindow):
+    def __init__(self, parent: QWidget, document: Optional[ImageDocument] = None):
         super().__init__(parent)
+
+        self.document = document
 
         self.image_label = QLabel()
         self.image_label.setBackgroundRole(QPalette.Base)
@@ -42,8 +49,10 @@ class DocumentView(QMdiSubWindow):
         self.setWidget(main_widget)
         self.setWindowTitle("Image")
         
+    def setImageDocument(self, document: ImageDocument):
+        assert(document.image)
+        self.document = document
 
-    def show_image(self, image: Image):
-        pixmap = QPixmap.fromImage(ImageQt(image))
+        pixmap = QPixmap.fromImage(ImageQt(document.image))
         self.image_label.setPixmap(pixmap)
         self.image_label.resize(pixmap.size())
