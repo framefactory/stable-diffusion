@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._params = ImageParams()
+        self._library = Library(self, "library")
 
         self._createActions()
         self._createMenu()
@@ -52,9 +53,7 @@ class MainWindow(QMainWindow):
         self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
 
         self.setWindowTitle("Diffusion Lab")
-        self.resize(QApplication.primaryScreen().availableSize() * (2 / 5))
-
-        self.library = Library(self, "library")
+        self.resize(QApplication.primaryScreen().availableSize() * (3 / 5))
 
         self.engine = Engine(self)
         self.engine.image_ready.connect(self._image_ready) #type:ignore
@@ -80,9 +79,13 @@ class MainWindow(QMainWindow):
         self._exit_action.setShortcut("Alt+F4")
         self._exit_action.triggered.connect(self.close) #type:ignore
 
-        self._generate_action = QAction("&Generate", self)
+        self._generate_action = QAction("&Generate Image", self)
         self._generate_action.setShortcut("F5")
         self._generate_action.triggered.connect(self._generate) #type:ignore
+
+        self._input_image_action = QAction("Use As &Input Image", self)
+        self._input_image_action.setShortcut("Ctrl+I")
+        self._input_image_action.triggered.connect(self._use_as_input_image) #type:ignore
 
     def _createMenu(self):
         menu_bar = self.menuBar()
@@ -93,6 +96,8 @@ class MainWindow(QMainWindow):
 
         edit_menu = menu_bar.addMenu("&Edit")
         edit_menu.addAction(self._generate_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self._input_image_action)
 
     def _createStatusBar(self):
         self._status_label = QLabel()
@@ -126,6 +131,15 @@ class MainWindow(QMainWindow):
         pass
 
     @Slot()
+    def _use_as_input_image(self):
+        image_view = cast(ImageDocumentView, self._document_area.activeSubWindow())
+        if image_view is not None and image_view.document is not None:
+            path = self._library.base_path / image_view.document.path
+            image = image_view.document.image
+            if image is not None:
+                self._prompt_panel.setInputImage(str(path), image)
+
+    @Slot()
     def _generate(self):
         if self._settings_panel._seed_control.auto_generate:
             self._settings_panel._seed_control.generate()
@@ -141,16 +155,21 @@ class MainWindow(QMainWindow):
         text = progress.state.value
         self._status_label.setText(text)
 
-        if progress.state == EngineState.CALCULATING:
+        if progress.state == EngineState.DREAMING:
             self._status_progress.setTextVisible(True)
+            self._status_progress.setMaximum(100)
             self._status_progress.setValue(progress.percent)
+        elif progress.state == EngineState.LOADING:
+            self._status_progress.setTextVisible(False)
+            self._status_progress.setMaximum(0)
         else:
             self._status_progress.setTextVisible(False)
+            self._status_progress.setMaximum(100)
             self._status_progress.setValue(0)
 
     @Slot(ImageResult)
     def _image_ready(self, result: ImageResult):
-        document = self.library.save_image(result.image, result.params)
+        document = self._library.save_image(result.image, result.params)
         image_view = cast(ImageDocumentView, self._document_area.activeSubWindow())
         if image_view is None:
             image_view = self._new_image()

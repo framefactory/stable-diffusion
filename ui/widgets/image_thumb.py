@@ -24,24 +24,26 @@ class ImageThumb(QLabel):
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.setAlignment(Qt.AlignCenter)
 
-        self._path: str = ""
-        self._image: Optional[Image] = None
-
-    def setImage(self, path: str, image: Image):
-        self._path = path
-        self._image = image
-        pixmap = QPixmap.fromImage(ImageQt(image))
+    def setImage(self, image: Image):
+        w, h = image.size
+        a = w / h
+        w = 128 if a >= 1 else int(w * a)
+        h = 128 if a < 1 else int(w / a)
+        resized = image.resize((w, h), PIL_Image.Resampling.BICUBIC)
+        left = 64 - w // 2
+        top = 64 - h // 2
+        thumb = PIL_Image.new("RGB", (128, 128))
+        thumb.paste(resized, (left, top, left + w, top + h))
+        pixmap = QPixmap.fromImage(ImageQt(thumb))
         self.setPixmap(pixmap)
         self.setText("")
 
     def loadImage(self, path: str):
         image = PIL_Image.open(path)
         image.load()
-        self.setImage(path, image)
+        self.setImage(image)
 
     def clearImage(self):
-        self._path = ""
-        self._image = None
         self.setPixmap(QPixmap())
         self.setText("No Image")
 

@@ -206,6 +206,5 @@ class SeedControl(QWidget):
 
     @Slot()
     def _text_changed(self):
-        self.auto_generate = False
         self.changed.emit(self.value)
 

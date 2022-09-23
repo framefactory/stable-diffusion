@@ -1,3 +1,5 @@
+from PIL.Image import Image
+
 from PySide6.QtCore import (
     Qt,
     Slot
@@ -10,7 +12,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QLabel,
     QTextEdit,
-    QCheckBox
+    QPushButton
 )
 
 from ui.engine import ImageParams
@@ -42,13 +44,23 @@ class InputPanel(QDockWidget):
         self._image_thumb = ImageThumb()
         vert_layout.addWidget(QLabel("Image"))
         vert_layout.addWidget(self._image_thumb)
-        self._image_check = QCheckBox("Use Image")
-        vert_layout.addWidget(self._image_check)
+        self._clear_button = QPushButton("Clear Image")
+        self._clear_button.clicked.connect(self.clearInputImage) #type:ignore
+        vert_layout.addWidget(self._clear_button)
         vert_layout.addStretch()
         horz_layout.addLayout(vert_layout, 0)
 
         main_widget.setLayout(horz_layout)
         self.setWidget(main_widget)
+
+    def setInputImage(self, path: str, image: Image):
+        self.params.init_img = path
+        self._image_thumb.setImage(image)
+
+    @Slot()
+    def clearInputImage(self):
+        self.params.init_img = None
+        self._image_thumb.clearImage()
 
     @Slot()
     def _prompt_changed(self):

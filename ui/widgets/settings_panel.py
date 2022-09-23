@@ -106,7 +106,7 @@ class SettingsPanel(QDockWidget):
         self._seed_control.value = self.params.seed
         self._steps_control.value = self.params.steps
         self._cfg_control.value = self.params.cfg_scale
-        self._strength_control.value = self.params.strength
+        self._strength_control.value = 1 - self.params.strength
         self._sampler_control.option = self.params.sampler_name
         self._eta_control.value = self.params.ddim_eta
         self._skipnorm_control.checked = self.params.skip_normalize
@@ -139,7 +139,7 @@ class SettingsPanel(QDockWidget):
 
     @Slot()
     def _image_strength_changed(self, value: float):
-        self.params.strength = value
+        self.params.strength = 1 - value
 
     @Slot()
     def _eta_changed(self, value: float):

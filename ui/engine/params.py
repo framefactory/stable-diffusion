@@ -48,8 +48,8 @@ class ImageParams(DataClass):
     sampler_name: str = Sampler.PLMS.value
     seamless: bool = False
     log_tokenization: bool = False
-    init_img: Optional[Image] = None
-    strength: float = 0.0
+    init_img: Optional[str] = None
+    strength: float = 0.5
     gfpgan_strength: float = 0.0
     upscale: Optional[Tuple[int, float]] = None # (2, 0.75)
 
