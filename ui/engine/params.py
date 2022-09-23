@@ -39,9 +39,10 @@ class ImageParams(DataClass):
     """
     prompt: str = "An astronaut riding on a horse in the desert, trending on artstation"
     steps: int = 50
-    seed: Optional[int] = 0
+    seed: int = 1712498935
     cfg_scale: float = 7.5
     ddim_eta: float = 0.0
+    skip_normalize: bool = False
     width: int = 512
     height: int = 512
     sampler_name: str = Sampler.PLMS.value

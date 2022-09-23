@@ -23,57 +23,74 @@ from PySide6.QtWidgets import (
 
 from ui.engine import ImageParams, Sampler
 
+from .controls import (
+    SliderControl, 
+    ComboControl, 
+    CheckBoxControl, 
+    SeedControl
+)
+
 class SettingsPanel(QDockWidget):
     generate = Signal()
 
     def __init__(self, parent: QWidget, params: ImageParams):
         super().__init__(parent)
         self.params = params
+        self.setWindowTitle("Settings")
 
         main_layout = QVBoxLayout()
-        param_layout = QGridLayout()
 
-        param_layout.addWidget(QLabel("Seed"), 0, 0)
-        self.seed_edit = seed_edit = QLineEdit()
-        seed_edit.textChanged.connect(self._seed_changed) #type:ignore
-        param_layout.addWidget(seed_edit, 0, 1)
-        seed_button = QPushButton("\u21bb")
-        seed_button.clicked.connect(self._seed_clicked) #type:ignore
-        param_layout.addWidget(seed_button, 0, 2)
+        self.seed_control = SeedControl("Seed")
+        self.seed_control.changed.connect(self._seed_changed)
+        main_layout.addWidget(self.seed_control)
 
-        param_layout.addWidget(QLabel("Steps"), 1, 0)
-        steps_slider = self.steps_slider = QSlider(Qt.Horizontal)
-        steps_slider.setMinimum(1)
-        steps_slider.setMaximum(200)
-        param_layout.addWidget(self.steps_slider, 1, 1)
-        self.steps_text = QLabel()
-        self.steps_text.setAlignment(Qt.AlignRight)
-        param_layout.addWidget(self.steps_text, 1, 2)
-        steps_slider.valueChanged.connect(self._steps_changed) #type:ignore
+        self.steps_control = SliderControl("Steps", 1, 200, 1, 0)
+        self.steps_control.changed.connect(self._steps_changed)
+        main_layout.addWidget(self.steps_control)
 
-        param_layout.addWidget(QLabel("CFG scale"), 2, 0)
-        cfg_slider = self.cfg_slider = QSlider(Qt.Horizontal)
-        cfg_slider.setMinimum(10)
-        cfg_slider.setMaximum(100)
-        param_layout.addWidget(self.cfg_slider, 2, 1)
-        self.cfg_text = QLabel()
-        self.cfg_text.setAlignment(Qt.AlignRight)
-        param_layout.addWidget(self.cfg_text, 2, 2)
-        cfg_slider.valueChanged.connect(self._cfg_changed) #type:ignore
+        self.cfg_control = SliderControl("CFG Scale", 1, 20, 0.1, 1)
+        self.cfg_control.changed.connect(self._cfg_changed)
+        main_layout.addWidget(self.cfg_control)
 
-        param_layout.addWidget(QLabel("Sampler"), 3, 0)
-        sampler_combo = self.sampler_combo = QComboBox()
-        sampler_combo.addItems([ s.value for s in Sampler])
-        param_layout.addWidget(sampler_combo, 3, 1)
-        sampler_combo.currentIndexChanged.connect(self._sampler_changed) #type:ignore
+        samplers = [ s.value for s in Sampler]
+        self.sampler_control = ComboControl("Sampler", samplers)
+        self.sampler_control.changed.connect(self._sampler_changed)
+        main_layout.addWidget(self.sampler_control)
 
+        self.eta_control = SliderControl("DDIM Eta", 0, 1, 0.01, 2)
+        self.eta_control.setEnabled(False)
+        self.eta_control.changed.connect(self._eta_changed)
+        main_layout.addWidget(self.eta_control)
+
+        self.skipnorm_control = CheckBoxControl("Skip Normalize")
+        self.skipnorm_control.changed.connect(self._skipnorm_changed)
+        main_layout.addWidget(self.skipnorm_control)
+
+        self.logtoken_control = CheckBoxControl("Log Tokenization")
+        self.logtoken_control.changed.connect(self._logtoken_changed)
+        main_layout.addWidget(self.logtoken_control)
+
+        self.width_control = SliderControl("Image Width", 256, 1024, 64)
+        self.width_control.changed.connect(self._width_changed)
+        main_layout.addWidget(self.width_control)
+
+        self.height_control = SliderControl("Image Height", 256, 1024, 64)
+        self.height_control.changed.connect(self._height_changed)
+        main_layout.addWidget(self.height_control)
+
+        self.upscale_control = ComboControl("Upscaling", [ "Off", "2x", "4x" ])
+        self.upscale_control.changed.connect(self._upscaling_changed)
+        main_layout.addWidget(self.upscale_control)
+
+        self.seamless_control = CheckBoxControl("Seamless")
+        self.seamless_control.changed.connect(self._seamless_changed)
+        main_layout.addWidget(self.seamless_control)
 
         command_layout = QVBoxLayout()
         generate_button = QPushButton("Generate")
         generate_button.clicked.connect(self._generate_clicked) #type:ignore
         command_layout.addWidget(generate_button)
 
-        main_layout.addLayout(param_layout)
         main_layout.addStretch(1)
         main_layout.addLayout(command_layout)
 
@@ -87,40 +104,87 @@ class SettingsPanel(QDockWidget):
         if params:
             self.params = params
 
-        self.seed_edit.setText(str(self.params.seed))
-        self.steps_slider.setValue(self.params.steps)
-        self.cfg_slider.setValue(int(self.params.cfg_scale * 10))
-        self.sampler_combo.setCurrentText(self.params.sampler_name)
+        self.seed_control.value = self.params.seed
+        self.steps_control.value = self.params.steps
+        self.cfg_control.value = self.params.cfg_scale
+        self.sampler_control.option = self.params.sampler_name
+        self.eta_control.value = self.params.ddim_eta
+        self.skipnorm_control.checked = self.params.skip_normalize
+        self.logtoken_control.checked = self.params.log_tokenization
+        self.width_control.value = self.params.width
+        self.height_control.value = self.params.height
+        self.seamless_control.checked = self.params.seamless
+
+        if self.params.upscale is None:
+            self.upscale_control.index = 0
+        elif self.params.upscale == 2:
+            self.upscale_control.index = 1
+        else:
+            self.upscale_control.index = 2
 
     def sizeHint(self) -> QSize:
         return QSize(380, 640)
 
     @Slot()
-    def _seed_changed(self):
-        self.params.seed = int(self.seed_edit.text())
+    def _seed_changed(self, value: int):
+        self.params.seed = value
 
     @Slot()
-    def _seed_clicked(self):
-        random.seed()
-        self.params.seed = random.randint(0, 2**31-1)
-        self.seed_edit.setText(str(self.params.seed))
+    def _steps_changed(self, value: float):
+        self.params.steps = int(value)
 
     @Slot()
-    def _cfg_changed(self):
-        self.params.cfg_scale = self.cfg_slider.value() / 10.0
-        self.cfg_text.setText(f"{self.params.cfg_scale:.2f}")
+    def _cfg_changed(self, value: float):
+        self.params.cfg_scale = value
 
     @Slot()
-    def _steps_changed(self):
-        self.params.steps = self.steps_slider.value()
-        self.steps_text.setText(f"{self.params.steps}")
+    def _eta_changed(self, value: float):
+        self.params.ddim_eta = value
 
     @Slot()
-    def _sampler_changed(self):
-        self.params.sampler_name = self.sampler_combo.currentText()
+    def _skipnorm_changed(self, value: bool):
+        self.params.skip_normalize = value
+
+    @Slot()
+    def _logtoken_changed(self, value: bool):
+        self.params.log_tokenization = value
+
+    @Slot()
+    def _sampler_changed(self, index: int):
+        option = self.sampler_control.option
+        self.params.sampler_name = option
+
+        if option == "ddim":
+            self.eta_control.setEnabled(True)
+        else:
+            self.eta_control.value = 0
+            self.eta_control.setEnabled(False)
+
+    @Slot()
+    def _width_changed(self, value: float):
+        self.params.width = int(value)
+
+    @Slot()
+    def _height_changed(self, value: float):
+        self.params.height = int(value)
+
+    @Slot()
+    def _upscaling_changed(self, index: int):
+        if index == 0:
+            self.params.upscale = None
+        else:
+            factor = index * 2
+            self.params.upscale = (factor, 0.75)
+
+    @Slot()
+    def _seamless_changed(self, value: bool):
+        self.params.seamless = value
 
     @Slot()
     def _generate_clicked(self):
+        if self.seed_control.auto_generate:
+            self.seed_control.generate()
+
         for key, value in self.params.to_dict().items():
             print(f'{key}: {value}')
         self.generate.emit() #type:ignore

@@ -21,6 +21,7 @@ class PromptPanel(QDockWidget):
     def __init__(self, parent: QWidget, params: ImageParams):
         super().__init__(parent)
         self.params = params
+        self.setWindowTitle("Prompt")
 
         main_widget = QWidget(self)
         main_layout = QVBoxLayout()
@@ -32,7 +33,6 @@ class PromptPanel(QDockWidget):
 
         main_widget.setLayout(main_layout)
         self.setWidget(main_widget)
-        self.setWindowTitle("Prompt")
 
     @Slot()
     def _on_prompt_changed(self):
