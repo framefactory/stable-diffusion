@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from .utils import DataClass
+from ui.app.utils import DataClass
 
 
 @dataclass

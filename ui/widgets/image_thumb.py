@@ -38,14 +38,17 @@ class ImageThumb(QLabel):
         self.setPixmap(pixmap)
         self.setText("")
 
-    def loadImage(self, path: str):
-        image = PIL_Image.open(path)
-        image.load()
-        self.setImage(image)
-
     def clearImage(self):
         self.setPixmap(QPixmap())
         self.setText("No Image")
+
+    def loadImage(self, path: str):
+        if path:
+            image = PIL_Image.open(path)
+            image.load()
+            self.setImage(image)
+        else:
+            self.clearImage()
 
     def sizeHint(self) -> QSize:
         return QSize(128, 128)

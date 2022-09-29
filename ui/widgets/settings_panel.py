@@ -1,47 +1,50 @@
-from typing import Optional
-import random
-
 from PySide6.QtCore import (
-    Qt,
     QSize,
-    Signal,
     Slot
 )
 
 from PySide6.QtWidgets import (
     QWidget,
     QDockWidget,
-    QPushButton,
     QVBoxLayout,
 )
 
-from ui.engine import (
-    ImageParams,
+from ui.data import (
+    DreamConstants,
+    DreamVariables,
     Sampler
 )
 
 from .controls import (
     SliderControl, 
     ComboControl, 
-    CheckBoxControl, 
+    CheckBoxControl,
     SeedControl
 )
 
 class SettingsPanel(QDockWidget):
-    generate = Signal(int)
-
-    def __init__(self, params: ImageParams):
+    def __init__(self, constants: DreamConstants, variables: DreamVariables):
         super().__init__("Settings", None)
         self.setFeatures(self.DockWidgetFloatable | self.DockWidgetMovable)
 
-        self.iterations = 1
-        self.params = params
+        self._constants = constants
+        self._variables = variables
 
         main_layout = QVBoxLayout()
 
-        self._seed_control = SeedControl("Seed")
-        self._seed_control.changed.connect(self._seed_changed)
-        main_layout.addWidget(self._seed_control)
+        self._seed_a_control = SeedControl("Seed A")
+        self._seed_a_control.changed.connect(self._seed_a_changed)
+        self._seed_a_control.randomize_changed.connect(self._seed_a_randomize_changed)
+        main_layout.addWidget(self._seed_a_control)
+
+        self._seed_b_control = SeedControl("Seed B")
+        self._seed_b_control.changed.connect(self._seed_b_changed)
+        self._seed_b_control.randomize_changed.connect(self._seed_b_randomize_changed)
+        main_layout.addWidget(self._seed_b_control)
+
+        self._seed_blend_control = SliderControl("Seed Blend A/B", 0, 1, 0.01, 2)
+        self._seed_blend_control.changed.connect(self._seed_blend_changed)
+        main_layout.addWidget(self._seed_blend_control)
 
         self._steps_control = SliderControl("Steps", 1, 200, 1, 0)
         self._steps_control.changed.connect(self._steps_changed)
@@ -86,21 +89,15 @@ class SettingsPanel(QDockWidget):
         self._upscale_strength_control.changed.connect(self._upscale_strength_changed)
         main_layout.addWidget(self._upscale_strength_control)
 
+        self._face_strength_control = SliderControl("Face Reconstruction Strength", 0, 1, 0.01, 2)
+        self._face_strength_control.changed.connect(self._face_strength_changed)
+        main_layout.addWidget(self._face_strength_control)
+
         self._seamless_control = CheckBoxControl("Seamless")
         self._seamless_control.changed.connect(self._seamless_changed)
         main_layout.addWidget(self._seamless_control)
 
-        self._iterations_control = SliderControl("Iterations", 1, 1000, 1, 0)
-        self._iterations_control.changed.connect(self._iterations_changed)
-        main_layout.addWidget(self._iterations_control)
-
-        command_layout = QVBoxLayout()
-        generate_button = QPushButton("Generate")
-        generate_button.clicked.connect(self._generate_clicked) #type:ignore
-        command_layout.addWidget(generate_button)
-
-        main_layout.addStretch(1)
-        main_layout.addLayout(command_layout)
+        main_layout.addStretch()
 
         main_widget = QWidget(self)
         main_widget.setLayout(main_layout)
@@ -108,59 +105,91 @@ class SettingsPanel(QDockWidget):
 
         self.update()
 
-    def update(self, params: Optional[ImageParams] = None):
-        if params:
-            self.params = params
+    def randomize_seeds(self):
+        if self._seed_a_control.randomize_enabled:
+            self._seed_a_control.randomize()
 
-        format = self.params.format
-        content = self.params.content
+        if self._seed_b_control.randomize_enabled:
+            self._seed_b_control.randomize()
 
-        self._seed_control.value = content.seed
-        self._steps_control.value = content.steps
-        self._cfg_control.value = content.cfg_scale
-        self._image_strength_control.value = content.image_strength
-        self._feedback_strength_control.value = content.feedback_strength
-        self._sampler_control.option = content.sampler
-        self._eta_control.value = content.ddim_eta
-        self._width_control.value = format.width
-        self._height_control.value = format.height
-        self._seamless_control.checked = format.seamless
-        self._upscale_factor_control.index = max(0, int(format.upscale_factor) - 1)
-        self._upscale_strength_control.value = format.upscale_strength
-        self._iterations_control.value = self.iterations
+    def set_constants(self, constants: DreamConstants):
+        self._constants = constants
+        self.update()
+
+    def set_variables(self, variables: DreamVariables):
+        self._variables = variables
+        self.update()
+
+    def update(self):
+        constants = self._constants
+        variables = self._variables
+
+        self._seed_a_control.value = variables.seed_a
+        self._seed_b_control.value = variables.seed_b
+        self._seed_blend_control.value = variables.seed_blend
+        self._steps_control.value = variables.steps
+        self._cfg_control.value = variables.cfg_scale
+        self._image_strength_control.value = variables.image_strength
+        self._feedback_strength_control.value = variables.feedback_strength
+        self._sampler_control.option = variables.sampler
+        self._eta_control.value = variables.ddim_eta
+        self._width_control.value = constants.width
+        self._height_control.value = constants.height
+        self._seamless_control.checked = constants.seamless
+        self._upscale_factor_control.index = max(0, int(constants.upscale_factor) - 1)
+        self._upscale_strength_control.value = constants.upscale_strength
+        self._face_strength_control.value = constants.gfpgan_strength
+        self._seed_a_control.randomize_enabled = constants.seed_a_random
+        self._seed_b_control.randomize_enabled = constants.seed_b_random
 
 
     def sizeHint(self) -> QSize:
         return QSize(380, 640)
 
     @Slot()
-    def _seed_changed(self, value: int):
-        self.params.content.seed = value
+    def _seed_a_changed(self, value: int):
+        self._variables.seed_a = value
+
+    @Slot(bool)
+    def _seed_a_randomize_changed(self, state: bool):
+        self._constants.seed_a_random = state
+
+    @Slot()
+    def _seed_b_changed(self, value: int):
+        self._variables.seed_b = value
+
+    @Slot(bool)
+    def _seed_b_randomize_changed(self, state: bool):
+        self._constants.seed_b_random = state
+
+    @Slot()
+    def _seed_blend_changed(self, value: float):
+        self._variables.seed_blend = value
 
     @Slot()
     def _steps_changed(self, value: float):
-        self.params.content.steps = int(value)
+        self._variables.steps = int(value)
 
     @Slot()
     def _cfg_changed(self, value: float):
-        self.params.content.cfg_scale = value
+        self._variables.cfg_scale = value
 
     @Slot()
     def _image_strength_changed(self, value: float):
-        self.params.content.image_strength = value
+        self._variables.image_strength = value
 
     @Slot()
     def _image_feedback_changed(self, value: float):
-        self.params.content.feedback_strength = value
+        self._variables.feedback_strength = value
 
     @Slot()
     def _eta_changed(self, value: float):
-        self.params.content.ddim_eta = value
+        self._variables.ddim_eta = value
 
     @Slot()
     def _sampler_changed(self, index: int):
         sampler_name = self._sampler_control.option
-        self.params.content.sampler = sampler_name
+        self._variables.sampler = sampler_name
 
         if sampler_name == "ddim":
             self._eta_control.setEnabled(True)
@@ -170,28 +199,24 @@ class SettingsPanel(QDockWidget):
 
     @Slot()
     def _width_changed(self, value: float):
-        self.params.format.width = int(value)
+        self._constants.width = int(value)
 
     @Slot()
     def _height_changed(self, value: float):
-        self.params.format.height = int(value)
+        self._constants.height = int(value)
 
     @Slot()
     def _upscale_factor_changed(self, index: int):
-        self.params.format.upscale_factor = index * 2
+        self._constants.upscale_factor = index * 2
 
     @Slot()
     def _upscale_strength_changed(self, value: float):
-        self.params.format.upscale_strength = value
+        self._constants.upscale_strength = value
+
+    @Slot()
+    def _face_strength_changed(self, value: float):
+        self._constants.gfpgan_strength = value
 
     @Slot()
     def _seamless_changed(self, value: bool):
-        self.params.format.seamless = value
-
-    @Slot()
-    def _iterations_changed(self, value: float):
-        self.iterations = int(value)
-
-    @Slot()
-    def _generate_clicked(self):
-        self.generate.emit(self.iterations) #type:ignore
+        self._constants.seamless = value

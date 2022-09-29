@@ -1,33 +1,32 @@
-from typing import Optional
+from typing import cast
 
 from PIL.Image import Image
 from PIL.ImageQt import ImageQt
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Slot
 
 from PySide6.QtGui import (
-    QImage,
     QPixmap,
     QPalette
 )
 
 from PySide6.QtWidgets import (
     QWidget,
-    QMdiSubWindow,
     QVBoxLayout,
     QLabel,
     QScrollArea,
     QSizePolicy
 )
 
-from ui.engine import ImageDocument
+from ui.app import DreamImage
+from .dream_document_view import DreamDocumentView
 
 
-class ImageDocumentView(QMdiSubWindow):
-    def __init__(self, parent: QWidget, document: Optional[ImageDocument] = None):
-        super().__init__(parent)
+class DreamImageView(DreamDocumentView):
+    def __init__(self, parent: QWidget, document: DreamImage):
+        super().__init__(parent, document)
 
-        self.document = document
+        document.changed.connect(self.update)
 
         self.image_label = QLabel()
         self.image_label.setBackgroundRole(QPalette.Base)
@@ -47,12 +46,17 @@ class ImageDocumentView(QMdiSubWindow):
         main_widget.setLayout(main_layout)
 
         self.setWidget(main_widget)
-        self.setWindowTitle("Image")
-        
-    def setImageDocument(self, document: ImageDocument):
-        assert(document.image)
-        self.document = document
+        self.setWindowTitle("Dream Image")
 
-        pixmap = QPixmap.fromImage(ImageQt(document.image))
-        self.image_label.setPixmap(pixmap)
-        self.image_label.resize(pixmap.size())
+        self.update()
+        
+    @Slot()
+    def update(self):
+        document = cast(DreamImage, self.document)
+
+        if document.final_image:
+            pixmap = QPixmap.fromImage(ImageQt(document.final_image))
+            self.image_label.setPixmap(pixmap)
+            self.image_label.resize(pixmap.size())
+        else:
+            self.image_label.clear()

@@ -15,9 +15,13 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QLineEdit,
     QComboBox,
+    QSpinBox,
     QVBoxLayout,
     QHBoxLayout,
 )
+
+from ui.app.utils import generate_random_seed
+
 
 class SliderControl(QWidget):
     changed = Signal(float)
@@ -149,8 +153,39 @@ class CheckBoxControl(QWidget):
         self.changed.emit(self.checked)
 
 
+class SpinBoxControl(QWidget):
+    changed = Signal(int)
+
+    def __init__(self, title: str, min: int, max: int):
+        super().__init__()
+
+        horz_layout = QHBoxLayout()
+        title_label = QLabel(title)
+        horz_layout.addWidget(title_label, 1)
+
+        self._spin_box = QSpinBox()
+        self._spin_box.setMinimum(min)
+        self._spin_box.setMaximum(max)
+        horz_layout.addWidget(self._spin_box, 0)
+        self.setLayout(horz_layout)
+
+        self._spin_box.valueChanged.connect(self._value_changed) #type:ignore
+
+    @property
+    def value(self) -> int:
+        return self._spin_box.value()
+
+    @value.setter
+    def value(self, val: int):
+        self._spin_box.setValue(val)
+
+    @Slot()
+    def _value_changed(self):
+        self.changed.emit(self.value)
+
 class SeedControl(QWidget):
     changed = Signal(int)
+    randomize_changed = Signal(bool)
 
     def __init__(self, title: str):
         super().__init__()
@@ -167,10 +202,10 @@ class SeedControl(QWidget):
         vert_layout.addLayout(horz_layout)
         horz_layout = QHBoxLayout()
 
-        self._auto_check = QCheckBox("Auto Generate")
-        self._auto_check.setChecked(True)
+        self._random_check = QCheckBox("Randomize")
+        self._random_check.setChecked(True)
         horz_layout.addStretch(1)
-        horz_layout.addWidget(self._auto_check)
+        horz_layout.addWidget(self._random_check)
         horz_layout.addSpacing(10)
         
         self._randomize_button = QPushButton("\u2684")
@@ -180,7 +215,8 @@ class SeedControl(QWidget):
         self.setLayout(vert_layout)
 
         self._line_edit.textChanged.connect(self._text_changed) #type:ignore
-        self._randomize_button.clicked.connect(self.generate) #type:ignore
+        self._random_check.stateChanged.connect(self._randomize_changed) #type:ignore
+        self._randomize_button.clicked.connect(self.randomize) #type:ignore
 
     @property
     def value(self) -> int:
@@ -194,19 +230,22 @@ class SeedControl(QWidget):
         self._line_edit.setText(str(seed))
     
     @property
-    def auto_generate(self) -> bool:
-        return self._auto_check.isChecked()
+    def randomize_enabled(self) -> bool:
+        return self._random_check.isChecked()
 
-    @auto_generate.setter
-    def auto_generate(self, state: bool):
-        self._auto_check.setChecked(state)
+    @randomize_enabled.setter
+    def randomize_enabled(self, state: bool):
+        self._random_check.setChecked(state)
 
     @Slot()
-    def generate(self):
-        random.seed()
-        self.value = random.randint(0, 2**31-1)
+    def randomize(self):
+        self.value = generate_random_seed()
 
     @Slot()
     def _text_changed(self):
         self.changed.emit(self.value)
+
+    @Slot()
+    def _randomize_changed(self):
+        self.randomize_changed.emit(self.randomize_enabled)
 

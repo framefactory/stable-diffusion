@@ -1,6 +1,10 @@
 from inspect import getmembers, isroutine
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import datetime
+import random
+
+import numpy as np
+
 
 class DataClass:
     def to_dict(self) -> dict:
@@ -9,5 +13,6 @@ class DataClass:
         return deepcopy(dict(attribs))
 
 
-def generate_file_name_now(ext: str = "") -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3] + ext
+def generate_random_seed() -> int:
+    random.seed()
+    return random.randrange(0, np.iinfo(np.int32).max)
