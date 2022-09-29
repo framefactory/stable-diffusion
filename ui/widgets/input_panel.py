@@ -29,12 +29,12 @@ class InputPanel(QDockWidget):
         horz_layout = QHBoxLayout()
 
         vert_layout = QVBoxLayout()
-        self._prompt_edit = QTextEdit(params.prompt)
+        self._prompt_edit = QTextEdit(params.content.prompt)
         self._prompt_edit.textChanged.connect(self._prompt_changed) # type:ignore
         vert_layout.addWidget(QLabel("Prompt"))
         vert_layout.addWidget(self._prompt_edit, 3)
 
-        self._neg_prompt_edit = QTextEdit()
+        self._neg_prompt_edit = QTextEdit(params.content.negative_prompt)
         self._neg_prompt_edit.textChanged.connect(self._neg_prompt_changed) #type:ignore
         vert_layout.addWidget(QLabel("Negative Prompt"))
         vert_layout.addWidget(self._neg_prompt_edit, 1)
@@ -54,18 +54,18 @@ class InputPanel(QDockWidget):
         self.setWidget(main_widget)
 
     def setInputImage(self, path: str, image: Image):
-        self.params.init_img = path
+        self.params.content.image_path = path
         self._image_thumb.setImage(image)
 
     @Slot()
     def clearInputImage(self):
-        self.params.init_img = None
+        self.params.content.image_path = ""
         self._image_thumb.clearImage()
 
     @Slot()
     def _prompt_changed(self):
-        self.params.prompt = self._prompt_edit.toPlainText()
+        self.params.content.prompt = self._prompt_edit.toPlainText()
 
     @Slot()
     def _neg_prompt_changed(self):
-        pass
+        self.params.content.negative_prompt = self._neg_prompt_edit.toPlainText()

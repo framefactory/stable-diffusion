@@ -1,23 +1,26 @@
-from typing import Optional
+from typing import cast, Optional
 from dataclasses import dataclass
 from enum import Enum
-from copy import deepcopy
 from queue import Queue
-from threading import Thread
-from queue import Queue
+import os
+import json
 import traceback
 
 import torch
-from ldm.generate import Generate
+from PIL.Image import Image
 
 from PySide6.QtCore import (
     QObject,
     QThread,
-    Signal,
-    Slot
+    Signal
 )
 
-from .params import ModelParams, ImageParams, ImageResult
+from .jobs import Job, ImageJob, SequenceJob
+from .preferences import Preferences
+from .parameters import ContentParams, ImageParams
+from .image_document import ImageDocument
+from .generator import Generator
+from .utils import generate_file_name_now
 
 class EngineState(Enum):
     READY = "Ready"
@@ -27,70 +30,112 @@ class EngineState(Enum):
 @dataclass
 class EngineProgress:
     state: EngineState
-    percent: int
-    params: Optional[ImageParams]
-
+    step: int = 0
+    total_steps: int = 0
+    frame: int = 0
+    total_frames: int = 0
 
 class Engine(QThread):
-    image_ready = Signal(ImageResult)
+    image_ready = Signal(ImageDocument)
     progress_update = Signal(EngineProgress)
 
-    def __init__(self, parent: QObject, params = ModelParams()):
+    def __init__(self, parent: QObject, preferences: Preferences):
         super().__init__(parent)
 
-        self._pipeline = Generate(**params.to_dict())
-        self._queue: Queue[ImageParams] = Queue()
-        self._params: Optional[ImageParams] = None
+        self._library_path = preferences.library_path
+        self._generator = Generator(preferences.model_params)
+        self._queue: Queue[Job] = Queue()
+        self._current_job: Optional[Job] = None
+        self._current_content: Optional[ContentParams] = None
+        self._current_frame: int = 0
+        self._cancel_requested = False
         self._stop_requested = False
 
-    def generate(self, params: ImageParams):
-        params_copy = deepcopy(params)
-
-        # noise strength >= 1 means input image has no influence
-        if params_copy.strength >= 1.0:
-            params_copy.init_img = None
-
-        self._queue.put(params_copy)
+    def post_job(self, job: Job):
+        self._queue.put(job)
 
     def run(self):
-        self._set_state(EngineState.LOADING, 0)
-        self._pipeline.load_model()
-        self._set_state(EngineState.READY, 0)
+        self._set_state(EngineState.LOADING)
+        self._generator.load()
+        self._set_state(EngineState.READY)
 
         while(not self._stop_requested):
             try:
-                params = self._queue.get(block=True, timeout=0.25)
+                job = self._queue.get(block=True, timeout=0.25)
             except:
                 continue
 
-            self._params = params
-            self._set_state(EngineState.DREAMING, 0)
+            self._current_job = job
+            self._set_state(EngineState.DREAMING)
 
             try:
-                result = self._pipeline.prompt2image(
-                    step_callback=self._step_callback,
-                    **params.to_dict()
-                )
+                if job.type == ImageJob.type:
+                    job = cast(ImageJob, job)
+                    self._current_content = job.params.content
 
-                params.seed = result[0][1]
-                result = ImageResult(params, result[0][0])
-                self.image_ready.emit(result) # type:ignore
+                    if not job.params.path:
+                        job.params.path = generate_file_name_now(".png")
+
+                    image = self._generator.generate(job.params, self._cb_image_step)
+                    document = self._save_generated(image, job.params)
+                    self.image_ready.emit(document)
+
+                elif job.type == SequenceJob.type:
+                    job = cast(SequenceJob, job)
+
+                    if not job.params.path:
+                        job.params.path = generate_file_name_now(".png")
+
+                    for frame in range(job.params.length):
+                        if self._cancel_requested:
+                            break
+
+                        content = job.get_interpolated_content(frame)
+                        self._current_content = content
+                        self._current_frame = frame
+
+                        root, ext = os.path.splitext(job.params.path)
+                        path = f"{root}-{frame:04}{ext}"
+                        params = ImageParams(path, job.params.format, content)
+                        image = self._generator.generate(params, self._cb_sequence_step)
+                        document = self._save_generated(image, params)
+                        self.image_ready.emit(document)
 
             except Exception as e:
                 traceback.print_exc()
 
-            self._set_state(EngineState.READY, 0)
+            self._set_state(EngineState.READY)
             self._queue.task_done()
 
     def stop(self):
         self._stop_requested = True
         self.wait()
 
-    def _step_callback(self, gpu_data: torch.Tensor, step: int):
-        progress = step / (self._params.steps - 1) if self._params else 0
-        self._set_state(EngineState.DREAMING, int(progress * 100))
+    def _cb_image_step(self, gpu_data: torch.Tensor, step: int):
+        content = cast(ContentParams, self._current_content)
+        progress = EngineProgress(EngineState.DREAMING, step, content.steps)
+        self.progress_update.emit(progress)
 
-    def _set_state(self, state: EngineState, percent: int):
-        progress = EngineProgress(state, percent, self._params)
-        self.progress_update.emit(progress) # type:ignore
+    def _cb_sequence_step(self, gpu_data: torch.Tensor, step: int):
+        job = cast(SequenceJob, self._current_job)
+        content = cast(ContentParams, self._current_content)
+        progress = EngineProgress(EngineState.DREAMING, step, content.steps,
+            self._current_frame, job.params.length)
+        self.progress_update.emit(progress)
+
+    def _set_state(self, state: EngineState):
+        progress = EngineProgress(state)
+        self.progress_update.emit(progress)
+
+    def _save_generated(self, image: Image, params: ImageParams) -> ImageDocument:
+        file_path = os.path.join(self._library_path, params.path)
+        image.save(file_path)
+
+        file_base, _ = os.path.splitext(file_path)
+        document_path = f"{file_base}.json"
+        document = ImageDocument(image, params)
+        with open(document_path, "w") as json_file:
+            json.dump(document.to_dict(), json_file, indent=4)
+
+        return document
 

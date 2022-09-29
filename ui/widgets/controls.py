@@ -74,13 +74,14 @@ class SliderControl(QWidget):
 class ComboControl(QWidget):
     changed = Signal(int)
 
-    def __init__(self, title: str, options: List[str], texts: Optional[List[str]] = None):
+    def __init__(self, title: str, options: List[str], labels: Optional[List[str]] = None):
         super().__init__()
 
-        if texts is not None:
-            assert(len(options) == len(texts))
+        if labels is not None:
+            assert(len(options) == len(labels))
 
         self._options = options
+        self._labels = labels
 
         horz_layout = QHBoxLayout()
 
@@ -88,7 +89,7 @@ class ComboControl(QWidget):
         horz_layout.addWidget(title_label, 1)    
 
         self._combo_box = QComboBox()
-        self._combo_box.addItems(texts or options)
+        self._combo_box.addItems(labels or options)
         horz_layout.addWidget(self._combo_box, 1)
 
         self.setLayout(horz_layout)
@@ -106,7 +107,8 @@ class ComboControl(QWidget):
 
     @property
     def option(self) -> str:
-        return self._combo_box.currentText()
+        index = self._combo_box.currentIndex()
+        return self._options[index]
 
     @option.setter
     def option(self, opt: str):

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QSizePolicy
 )
 
-from ui.engine.image_document import ImageDocument
+from ui.engine import ImageDocument
 
 
 class ImageDocumentView(QMdiSubWindow):
