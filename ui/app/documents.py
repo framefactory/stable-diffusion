@@ -2,22 +2,22 @@ from typing import Optional, Union, List, cast
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from .dreamer import FrameResult
+from .dreamer import DreamResult
 from .dream_document import DreamDocument
-from .dream_image import DreamImage
-from .dream_sequence import DreamSequence
+from .dream_image_document import DreamImageDocument
+from .dream_sequence_document import DreamSequenceDocument
 
 
 class Documents(QObject):
-    image_added = Signal(DreamImage)
-    sequence_added = Signal(DreamSequence)
+    image_added = Signal(DreamImageDocument)
+    sequence_added = Signal(DreamSequenceDocument)
     active_document_changed = Signal(DreamDocument)
 
     def __init__(self, parent: QObject):
         super().__init__(parent)
 
-        self.images: List[DreamImage] = []
-        self.sequences: List[DreamSequence] = []
+        self.images: List[DreamImageDocument] = []
+        self.sequences: List[DreamSequenceDocument] = []
 
         self._active_document: Optional[DreamDocument] = None
 
@@ -25,34 +25,43 @@ class Documents(QObject):
     def active_document(self) -> Optional[DreamDocument]:
         return self._active_document
 
-    @Slot(FrameResult)
-    def add_frame(self, result: FrameResult):
+    @Slot(DreamResult)
+    def add_generated_image(self, result: DreamResult):
         document = self._active_document
-        if isinstance(document, DreamImage):
-            document.frame = result.frame
+        if isinstance(document, DreamImageDocument):
+            document.dream_image = result.dream_image
             document.set_images(result.final_image, result.raw_image)
         else:
-            new_document = DreamImage(result.frame)
+            new_document = DreamImageDocument(result.dream_image)
             new_document.set_images(result.final_image, result.raw_image)
             self.add_image_document(new_document)   
 
-    def add_image_document(self, image: DreamImage):
-        print("add image document")
-        image.setParent(self)
-        self.images.append(image)
-        self.image_added.emit(image)
-        self.set_active_document(image)
+    def add_image_document(self, document: DreamImageDocument):
+        document.setParent(self)
+        document.changed.connect(self._image_document_changed)
+        self.images.append(document)
+        self.image_added.emit(document)
+        self.set_active_document(document)
 
-    def add_sequence_document(self, sequence: DreamSequence):
-        sequence.setParent(self)
-        self.sequences.append(sequence)
-        self.sequence_added.emit(sequence)
-        self.set_active_document(sequence)
+    def add_sequence_document(self, document: DreamSequenceDocument):
+        document.setParent(self)
+        document.changed.connect(self._sequence_document_changed)
+        self.sequences.append(document)
+        self.sequence_added.emit(document)
+        self.set_active_document(document)
 
     def set_active_document(self, document: DreamDocument):
-        print("set active document")
         self._active_document = document
         self.active_document_changed.emit(document)
 
+    @Slot(DreamImageDocument)
+    def _image_document_changed(self, document: DreamImageDocument):
+        if document is self.active_document:
+            self.active_document_changed.emit(document)
+
+    @Slot(DreamSequenceDocument)
+    def _sequence_document_changed(self, document: DreamSequenceDocument):
+        if document is self.active_document:
+            self.active_document_changed.emit(document)
 
         

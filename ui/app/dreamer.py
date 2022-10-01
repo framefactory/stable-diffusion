@@ -1,5 +1,6 @@
-from typing import cast, Optional
+from typing import cast, Optional, Union
 from dataclasses import dataclass
+from copy import deepcopy
 from enum import Enum
 from queue import Queue
 import os
@@ -9,15 +10,10 @@ import traceback
 import torch
 from PIL.Image import Image
 
-from PySide6.QtCore import (
-    QObject,
-    QThread,
-    Signal
-)
+from PySide6.QtCore import QObject, QThread, Signal
 
-from ui.data import Preferences, DreamVariables
+from ui.data import Preferences, DreamImage, DreamSequence, GeneratorSettings
 
-from .dream_params import Dream, DreamFrame
 from .generator import Generator
 from .library import Library
 
@@ -39,14 +35,17 @@ class DreamProgress:
 
 
 @dataclass
-class FrameResult:
-    frame: DreamFrame
+class DreamResult:
+    dream_image: DreamImage
     final_image: Image
     raw_image: Image
-    
+
+
+Dream = Union[DreamImage, DreamSequence]
+
 
 class Dreamer(QThread):
-    frame_ready = Signal(FrameResult)
+    image_ready = Signal(DreamResult)
     progress_update = Signal(DreamProgress)
 
     def __init__(self, parent: QObject, preferences: Preferences, library: Library):
@@ -56,13 +55,13 @@ class Dreamer(QThread):
         self._generator = Generator(preferences.model_params, self._cb_sequence_step)
         self._queue: Queue[Dream] = Queue()
         self._current_dream: Optional[Dream] = None
-        self._current_variables: Optional[DreamVariables] = None
+        self._current_generator: Optional[GeneratorSettings] = None
         self._current_frame: int = 0
         self._cancel_requested = False
         self._stop_requested = False
 
-    def add_dream(self, dream: Dream):
-        self._queue.put(dream)
+    def dream(self, dream: Dream):
+        self._queue.put(deepcopy(dream))
 
     def run(self):
         self._set_state(DreamerState.LOADING, "Loading Models...")
@@ -80,25 +79,32 @@ class Dreamer(QThread):
 
             try:
                 if not dream.path:
-                    dream.path = Library.generate_file_path(".png")
+                    dream.path = Library.generate_file_path()
 
-                for frame in range(dream.length):
-                    if self._cancel_requested:
-                        break
+                if type(dream) is DreamImage:
+                    self._current_generator = dream.generator
+                    self._current_frame = 0
 
-                    variables = dream.interpolate(frame)
-                    self._current_variables = variables
-                    self._current_frame = frame
+                    dream_image = DreamImage(dream.path, dream.generator, dream.output)
+                    final_image, raw_image = self._generator.generate(dream_image)
+                    result = self._save_generated(dream_image, final_image, raw_image)
+                    self.image_ready.emit(result)
 
-                    file_path = dream.path
-                    if dream.length > 1:
-                        root, ext = os.path.splitext(file_path)
-                        file_path = f"{root}-{frame:04}{ext}"
+                elif type(dream) is DreamSequence:
+                    for frame_index in range(dream.length):
+                        if self._cancel_requested:
+                            break
 
-                    frame = DreamFrame(file_path, dream.constants, variables)
-                    final_image, raw_image = self._generator.generate(frame)
-                    result = self._save_generated(frame, final_image, raw_image)
-                    self.frame_ready.emit(result)
+                        self._current_generator = dream.interpolate(frame_index)
+                        self._current_frame = frame_index
+
+                        root, ext = os.path.splitext(dream.path)
+                        file_path = f"{root}_{frame_index:04}{ext}"
+
+                        dream_image = DreamImage(file_path, self._current_generator, dream.output)
+                        final_image, raw_image = self._generator.generate(dream_image)
+                        result = self._save_generated(dream_image, final_image, raw_image)
+                        self.image_ready.emit(result)
 
             except Exception as e:
                 traceback.print_exc()
@@ -112,13 +118,18 @@ class Dreamer(QThread):
 
     def _cb_sequence_step(self, gpu_data: torch.Tensor, step: int):
         dream = cast(Dream, self._current_dream)
-        variables = cast(DreamVariables, self._current_variables)
+        generator = cast(GeneratorSettings, self._current_generator)
+        progress = None
 
-        text = ("Dreaming..." if dream.length == 1
-            else f"Dreaming {self._current_frame + 1} of {dream.length}...")
+        if type(dream) is DreamImage:
+            progress = DreamProgress(DreamerState.DREAMING, "Dreaming...",
+                step, generator.steps)
 
-        progress = DreamProgress(DreamerState.DREAMING, text, step, variables.steps,
-            self._current_frame, dream.length)
+        elif type(dream) is DreamSequence:
+            text = ("Dreaming..." if dream.length == 1
+                else f"Dreaming {self._current_frame + 1} of {dream.length}...")
+            progress = DreamProgress(DreamerState.DREAMING, text, step, generator.steps,
+                self._current_frame, dream.length)
 
         self.progress_update.emit(progress)
 
@@ -126,18 +137,20 @@ class Dreamer(QThread):
         progress = DreamProgress(state, text)
         self.progress_update.emit(progress)
 
-    def _save_generated(self, frame: DreamFrame, final_image: Image, raw_image: Image) -> FrameResult:
-        file_path = self._library.compose_path(frame.path)
-        final_image.save(file_path)
+    def _save_generated(self, dream: DreamImage, final_image: Image, raw_image: Image) -> DreamResult:
+        image_ext = dream.output.format
+
+        final_file_path = self._library.compose_library_path(dream.path, extension=image_ext)
+        final_image.save(final_file_path)
 
         if raw_image != final_image:
-            raw_file_path = self._library.compose_path(frame.path, suffix=".raw")
+            raw_file_path = self._library.compose_library_path(dream.path, suffix=".raw", extension=image_ext)
             raw_image.save(raw_file_path)
 
-        json_file_path = self._library.compose_path(frame.path, extension=".json")
+        json_file_path = self._library.compose_library_path(dream.path, extension="json")
 
         with open(json_file_path, "w") as json_file:
-            json.dump(frame.to_dict(), json_file, indent=4)
+            json.dump(dream.to_dict(), json_file, indent=4)
 
-        return FrameResult(frame, final_image, raw_image)
+        return DreamResult(dream, final_image, raw_image)
 

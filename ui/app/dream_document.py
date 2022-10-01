@@ -1,13 +1,13 @@
-from typing import List, Optional
+from typing import List, Any
 
 from PySide6.QtCore import QObject, Signal
 
 
 class DreamDocument(QObject):
-    changed = Signal()
+    changed = Signal(QObject)
 
-    def __init__(self, rating: int, tags: List[str]):
+    def __init__(self):
         super().__init__()
 
-        self.rating = rating
-        self.tags = tags
+        self.rating: int = 0
+        self.tags: List[str] = []

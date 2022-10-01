@@ -18,12 +18,12 @@ from PySide6.QtWidgets import (
     QSizePolicy
 )
 
-from ui.app import DreamImage
+from ui.app import DreamImageDocument
 from .dream_document_view import DreamDocumentView
 
 
 class DreamImageView(DreamDocumentView):
-    def __init__(self, parent: QWidget, document: DreamImage):
+    def __init__(self, parent: QWidget, document: DreamImageDocument):
         super().__init__(parent, document)
 
         document.changed.connect(self.update)
@@ -52,7 +52,7 @@ class DreamImageView(DreamDocumentView):
         
     @Slot()
     def update(self):
-        document = cast(DreamImage, self.document)
+        document = cast(DreamImageDocument, self.document)
 
         if document.final_image:
             pixmap = QPixmap.fromImage(ImageQt(document.final_image))

@@ -10,7 +10,7 @@
  */
 
 QWidget {
-	background: #404040;
+	background-color: #404040;
 	color: #e0e0e0;
 	selection-background-color: #0e78be;
 }
@@ -18,7 +18,7 @@ QWidget {
 /* MAIN WINDOW */
 
 QMainWindow {
-	background: #282828;
+	background-color: #282828;
 }
 QMainWindow::separator {
 	background-color: #343434;
@@ -45,7 +45,11 @@ QDockWidget::title {
 QDockWidget::close-button, QDockWidget::float-button {
 }
 
-/* SCROLL BAR */
+/* SCROLL AREA, SCROLL BAR */
+
+QScrollArea {
+	border: none;
+} 
 
 QScrollBar:vertical {
 	background-color: #343434;
@@ -103,10 +107,6 @@ QStatusBar > QProgressBar::chunk {
 }
 
 /* CONTROLS */
-
-QScrollArea {
-	border: none;
-} 
 
 QLabel {
 	background-color: transparent;

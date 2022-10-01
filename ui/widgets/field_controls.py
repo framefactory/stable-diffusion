@@ -1,11 +1,6 @@
-from typing import List, Optional
-import random
+from typing import List, Optional, Any
 
-from PySide6.QtCore import (
-    Qt,
-    Signal,
-    Slot
-)
+from PySide6.QtCore import Qt, Signal, Slot
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -23,11 +18,28 @@ from PySide6.QtWidgets import (
 from ui.app.utils import generate_random_seed
 
 
-class SliderControl(QWidget):
+class FieldControl(QWidget):
+    def __init__(self, target: object):
+        super().__init__()
+        self._target = target
+
+    def update(self):
+        raise RuntimeError("must override")
+
+    def set_target(self, target: object):
+        self._target = target
+
+
+class SliderControl(FieldControl):
     changed = Signal(float)
 
-    def __init__(self, title: str, min: float, max: float, step: float, precision = 0):
-        super().__init__()
+    def __init__(self, title: str, target: object, field: str, type: type,
+        min: float, max: float, step: float, precision = 0):
+        
+        super().__init__(target)
+
+        self._field = field
+        self._type = type
 
         self._value = min
         self._min = min
@@ -43,7 +55,7 @@ class SliderControl(QWidget):
         title_label = QLabel(title)
         horz_layout.addWidget(title_label, 1)
 
-        self._value_label = QLabel("0.0")
+        self._value_label = QLabel()
         horz_layout.addWidget(self._value_label, 0)
 
         self._slider = QSlider(Qt.Horizontal)
@@ -55,8 +67,8 @@ class SliderControl(QWidget):
         self.setLayout(vert_layout)
 
         self._slider.valueChanged.connect(self._value_changed) #type:ignore
-        self._value_changed(silent=True)
-    
+        self.update()
+
     @property
     def value(self) -> float:
         return self._value
@@ -64,22 +76,33 @@ class SliderControl(QWidget):
     @value.setter
     def value(self, val: float):
         val = max(self._min, min(self._max, val))
-        self._slider.setValue(int((val - self._min) / self._step))
+        self._slider.setValue(int((val - self._min) / self._step))    
+
+    def update(self):
+        self.value = float(getattr(self._target, self._field))
 
     @Slot()
     def _value_changed(self, *, silent=False):
         self._value = self._min + self._slider.value() * self._step
         fmt = f'{{:.{self._precision}f}}'
         self._value_label.setText(fmt.format(self._value))
+
+        setattr(self._target, self._field, self._type(self._value))
+
         if not silent:
             self.changed.emit(self._value)
 
 
-class ComboControl(QWidget):
+class ComboControl(FieldControl):
     changed = Signal(int)
 
-    def __init__(self, title: str, options: List[str], labels: Optional[List[str]] = None):
-        super().__init__()
+    def __init__(self, title: str, target: object, field: str,
+        options: List[Any], labels: Optional[List[str]] = None):
+        
+        super().__init__(target)
+
+        self._field = field
+        self._type = type
 
         if labels is not None:
             assert(len(options) == len(labels))
@@ -93,12 +116,14 @@ class ComboControl(QWidget):
         horz_layout.addWidget(title_label, 1)    
 
         self._combo_box = QComboBox()
-        self._combo_box.addItems(labels or options)
+        items = labels if labels else [ str(opt) for opt in options ]
+        self._combo_box.addItems(items)
         horz_layout.addWidget(self._combo_box, 1)
 
         self.setLayout(horz_layout)
 
         self._combo_box.currentIndexChanged.connect(self._index_changed) #type:ignore
+        self.update()
 
     @property
     def index(self) -> int:
@@ -110,25 +135,31 @@ class ComboControl(QWidget):
         self._combo_box.setCurrentIndex(idx)
 
     @property
-    def option(self) -> str:
+    def option(self) -> Any:
         index = self._combo_box.currentIndex()
         return self._options[index]
 
     @option.setter
-    def option(self, opt: str):
+    def option(self, opt: Any):
         idx = self._options.index(opt)
         self._combo_box.setCurrentIndex(idx)
 
+    def update(self):
+        self.option = getattr(self._target, self._field)
+
     @Slot()
     def _index_changed(self):
-        self.changed.emit(self._combo_box.currentIndex())
+        setattr(self._target, self._field, self.option)
+        self.changed.emit(self.index)
 
 
-class CheckBoxControl(QWidget):
+class CheckBoxControl(FieldControl):
     changed = Signal(bool)
 
-    def __init__(self, title: str):
-        super().__init__()
+    def __init__(self, title: str, target: object, field: str):
+        super().__init__(target)
+
+        self._field = field
 
         horz_layout = QHBoxLayout()
         title_label = QLabel(title)
@@ -139,6 +170,7 @@ class CheckBoxControl(QWidget):
         self.setLayout(horz_layout)
 
         self._check_box.stateChanged.connect(self._checked_changed) #type:ignore
+        self.update()
 
     @property
     def checked(self) -> bool:
@@ -148,16 +180,23 @@ class CheckBoxControl(QWidget):
     def checked(self, state: bool):
         self._check_box.setChecked(state)
 
+    def update(self):
+        self.checked = getattr(self._target, self._field)
+
     @Slot()
     def _checked_changed(self):
-        self.changed.emit(self.checked)
+        checked = self.checked
+        setattr(self._target, self._field, checked)
+        self.changed.emit(checked)
 
 
-class SpinBoxControl(QWidget):
+class SpinBoxControl(FieldControl):
     changed = Signal(int)
 
-    def __init__(self, title: str, min: int, max: int):
-        super().__init__()
+    def __init__(self, title: str, target: object, field: str, min: int, max: int):
+        super().__init__(target)
+
+        self._field = field
 
         horz_layout = QHBoxLayout()
         title_label = QLabel(title)
@@ -170,6 +209,7 @@ class SpinBoxControl(QWidget):
         self.setLayout(horz_layout)
 
         self._spin_box.valueChanged.connect(self._value_changed) #type:ignore
+        self.update()
 
     @property
     def value(self) -> int:
@@ -179,16 +219,27 @@ class SpinBoxControl(QWidget):
     def value(self, val: int):
         self._spin_box.setValue(val)
 
+    def update(self):
+        self.value = getattr(self._target, self._field)
+
     @Slot()
     def _value_changed(self):
-        self.changed.emit(self.value)
+        value = self.value
+        setattr(self._target, self._field, value)
+        self.changed.emit(value)
 
-class SeedControl(QWidget):
+
+class SeedControl(FieldControl):
     changed = Signal(int)
     randomize_changed = Signal(bool)
 
-    def __init__(self, title: str):
-        super().__init__()
+    def __init__(self, title: str, target: object,
+        value_field: str, randomize_enabled_field: str = ""):
+        
+        super().__init__(target)
+
+        self._value_field = value_field
+        self._randomize_enabled_field = randomize_enabled_field
 
         vert_layout = QVBoxLayout()
 
@@ -201,12 +252,13 @@ class SeedControl(QWidget):
 
         vert_layout.addLayout(horz_layout)
         horz_layout = QHBoxLayout()
-
-        self._random_check = QCheckBox("Randomize")
-        self._random_check.setChecked(True)
         horz_layout.addStretch(1)
-        horz_layout.addWidget(self._random_check)
-        horz_layout.addSpacing(10)
+
+        if randomize_enabled_field:
+            self._random_check = QCheckBox("Randomize")
+            self._random_check.setChecked(True)
+            horz_layout.addWidget(self._random_check)
+            horz_layout.addSpacing(10)
         
         self._randomize_button = QPushButton("\u2684")
         horz_layout.addWidget(self._randomize_button)
@@ -215,8 +267,12 @@ class SeedControl(QWidget):
         self.setLayout(vert_layout)
 
         self._line_edit.textChanged.connect(self._text_changed) #type:ignore
-        self._random_check.stateChanged.connect(self._randomize_changed) #type:ignore
         self._randomize_button.clicked.connect(self.randomize) #type:ignore
+
+        if randomize_enabled_field:
+            self._random_check.stateChanged.connect(self._randomize_changed) #type:ignore
+
+        self.update()
 
     @property
     def value(self) -> int:
@@ -231,11 +287,22 @@ class SeedControl(QWidget):
     
     @property
     def randomize_enabled(self) -> bool:
-        return self._random_check.isChecked()
+        if self._randomize_enabled_field:
+            return self._random_check.isChecked()
+        else:
+            raise RuntimeError("no randomize option")
 
     @randomize_enabled.setter
     def randomize_enabled(self, state: bool):
-        self._random_check.setChecked(state)
+        if self._randomize_enabled_field:
+            self._random_check.setChecked(state)
+        else:
+            raise RuntimeError("no randomize option")
+
+    def update(self):
+        self.value = getattr(self._target, self._value_field)
+        if self._randomize_enabled_field:
+            self.randomize_enabled = getattr(self._target, self._randomize_enabled_field)
 
     @Slot()
     def randomize(self):
@@ -243,9 +310,12 @@ class SeedControl(QWidget):
 
     @Slot()
     def _text_changed(self):
-        self.changed.emit(self.value)
+        value = self.value
+        setattr(self._target, self._value_field, value)
+        self.changed.emit(value)
 
     @Slot()
     def _randomize_changed(self):
-        self.randomize_changed.emit(self.randomize_enabled)
-
+        enabled = self.randomize_enabled
+        setattr(self._target, self._randomize_enabled_field, enabled)
+        self.randomize_changed.emit(enabled)

@@ -3,10 +3,11 @@ from copy import deepcopy
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ui.data import Preferences
+from ui.data import Preferences, DreamImage, DreamSequence, GeneratorKey
 
-from .dream_params import Dream, DreamVariables, VariableKey
-from .dream_image import DreamImage
+from .dream_document import DreamDocument
+from .dream_image_document import DreamImageDocument
+from .dream_sequence_document import DreamSequenceDocument
 
 #from ui.widgets import ImageDocumentView
 
@@ -17,6 +18,7 @@ from .library import Library
 
 class Engine(QObject):
     close_application = Signal()
+    dream_changed = Signal()
 
     def __init__(self, parent: Optional[QObject]):
         super().__init__(parent)
@@ -24,23 +26,19 @@ class Engine(QObject):
         self.actions = Actions(self)
         self.preferences = Preferences()
         self.documents = Documents(self)
+        self.documents.active_document_changed.connect(self._document_changed)
         self.library = Library(self, self.preferences)
         self.dreamer = Dreamer(self, self.preferences, self.library)
-        self.dreamer.frame_ready.connect(self.documents.add_frame)
+        self.dreamer.image_ready.connect(self.documents.add_generated_image)
 
-        self.dream = Dream()
-
-        key0 = VariableKey(0, DreamVariables())
-        key1 = VariableKey(1, DreamVariables())
-        self.dream.keys.append(key0)
-        self.dream.keys.append(key1)
-
+        self.dream = DreamSequence()
+        self.dream.keys.append(GeneratorKey(0))
+        self.dream.keys.append(GeneratorKey(1))
 
         actions = self.actions
         actions.new_image.triggered.connect(self._new_image) #type:ignore
         actions.export_image.triggered.connect(self._export_image) #type:ignore
         actions.exit.triggered.connect(self.close_application) #type:ignore
-        actions.generate.triggered.connect(self.generate_dream) #type:ignore
         actions.use_as_input_image.triggered.connect(self._use_as_input_image) #type:ignore
         actions.open_input_image.triggered.connect(self._open_input_image) #type:ignore        
 
@@ -50,14 +48,21 @@ class Engine(QObject):
     def stop(self):
         self.dreamer.stop()
 
+    def dream_image(self):
+        generator = self.dream.keys[0].settings
+        dream = DreamImage("", generator, self.dream.output)
+        self.dreamer.dream(dream)
+
+    def dream_sequence(self):
+        self.dreamer.dream(self.dream)
+
     @Slot()
-    def generate_dream(self):
-        self.dreamer.add_dream(self.dream)
-
-    # @Slot(DreamImage)
-    # def _image_ready(self, document: DreamImage):
-    #     self.documents.add_image_document(document)
-
+    def _document_changed(self, document: DreamDocument):
+        if type(document) is DreamImageDocument:
+            dream_image = deepcopy(document.dream_image)
+            self.dream.output = dream_image.output
+            self.dream.keys[0].settings = dream_image.generator
+            self.dream_changed.emit()
 
     @Slot()
     def _new_image(self):

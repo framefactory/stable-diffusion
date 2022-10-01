@@ -6,10 +6,9 @@ from PySide6.QtWidgets import QWidget, QMdiArea
 
 from ui.app import (
     DreamDocument, 
-    DreamImage, 
-    DreamSequence, 
-    Documents,
-    FrameResult
+    DreamImageDocument, 
+    DreamSequenceDocument, 
+    Documents
 )
 
 from .dream_document_view import DreamDocumentView
@@ -30,16 +29,16 @@ class DocumentArea(QMdiArea):
         self.setTabsMovable(True)
         self.setTabsClosable(True)
 
-    @Slot(DreamImage)
-    def create_image_view(self, document: DreamImage) -> DreamImageView:
+    @Slot(DreamImageDocument)
+    def create_image_view(self, document: DreamImageDocument) -> DreamImageView:
         print("create image view")
         image_view = DreamImageView(self, document)
         self.addSubWindow(image_view)
         image_view.showMaximized()
         return image_view
 
-    @Slot(DreamSequence)
-    def create_sequence_view(self, document: DreamSequence) -> DreamSequenceView:
+    @Slot(DreamSequenceDocument)
+    def create_sequence_view(self, document: DreamSequenceDocument) -> DreamSequenceView:
         sequence_view = DreamSequenceView(self, document)
         self.addSubWindow(sequence_view)
         sequence_view.showMaximized()

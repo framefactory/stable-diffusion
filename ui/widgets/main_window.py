@@ -1,51 +1,62 @@
 from typing import cast, Optional
-import os
 import PIL.Image as PIL_Image
 
-from PySide6.QtCore import (
-    Qt,
-    Slot
-)
-
-from PySide6.QtGui import (
-    QAction,
-    QCloseEvent
-)
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtGui import QCloseEvent
 
 from PySide6.QtWidgets import (
-    QMainWindow,
+    QWidget,
     QApplication,
-    QLabel,
+    QMainWindow,
+    QDockWidget,
+    QScrollArea,
     QProgressBar,
-    QFileDialog
-)
-
-from ui.data import (
-    Preferences
+    QFileDialog,
+    QLabel
 )
 
 from ui.app import (
-    Actions,
     Engine,
     DreamerState,    
-    DreamProgress,
-    Dream,
-    DreamImage
+    DreamProgress
 )
+from ui.app.dream_image_document import DreamImageDocument
 
 from .document_area import DocumentArea
-from .dream_image_view import DreamImageView
-from .dream_panel import DreamPanel
-from .input_panel import InputPanel
-from .settings_panel import SettingsPanel
 from .library_panel import LibraryPanel
+
+from .generator_input_view import GeneratorInputView
+from .generator_settings_view import GeneratorSettingsView
+from .output_settings_view import OutputSettingsView
+from .dream_control_view import DreamControlView
+
+
+class DockPanel(QDockWidget):
+    def __init__(self, title: str, widget: QWidget):
+        super().__init__(title)
+        self.setFeatures(self.DockWidgetFloatable | self.DockWidgetMovable)
+
+        self.setWidget(widget)
+
+
+class ScrollPanel(QDockWidget):
+    def __init__(self, title: str, widget: QWidget):
+        super().__init__(title)
+        self.setFeatures(self.DockWidgetFloatable | self.DockWidgetMovable)
+
+        scroll_area = QScrollArea()
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setWidget(widget)
+        scroll_area.setWidgetResizable(True)
+        self.setWidget(scroll_area)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self._engine = Engine(self)
-        self._engine.dreamer.progress_update.connect(self._progress_update)
+        self._engine.dreamer.progress_update.connect(self.update_progress)
 
         self._createMenu()
         self._createStatusBar()
@@ -54,8 +65,6 @@ class MainWindow(QMainWindow):
         self._document_area = DocumentArea(self, self._engine.documents)
         self.setCentralWidget(self._document_area)
 
-        #self._new_image()
-
         self.setDockNestingEnabled(True)
         self.setCorner(Qt.BottomLeftCorner, Qt.LeftDockWidgetArea)
         self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
@@ -63,17 +72,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Diffusion Lab")
         self.resize(QApplication.primaryScreen().availableSize() * (3 / 4))
 
+        # actions handled by MainWindow
+        actions = self._engine.actions
+        actions.import_image_and_data.triggered.connect(self.import_image_and_data) #type:ignore
+        actions.dream_image.triggered.connect(self._control_view._generate_image_clicked) #type:ignore
+        actions.dream_sequence.triggered.connect(self._control_view._generate_sequence_clicked) #type:ignore
+
         self._engine.start()
-
-        #self._renderer.image_ready.connect(self._image_ready) #type:ignore
-        #self._renderer.progress_update.connect(self._progress_update) #type:ignore
-        #self._renderer.start()
-
-    def show(self):
-        super().show()
-        self.resizeDocks([self._library_panel], [340], Qt.Horizontal)
-        self.resizeDocks([self._settings_panel], [340], Qt.Horizontal)
-        self.resizeDocks([self._input_panel], [240], Qt.Vertical)
 
     def closeEvent(self, event: QCloseEvent):
         self._engine.stop()
@@ -85,12 +90,15 @@ class MainWindow(QMainWindow):
 
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(actions.new_image)
+        file_menu.addSeparator()
+        file_menu.addAction(actions.import_image_and_data)
         file_menu.addAction(actions.export_image)
         file_menu.addSeparator()
         file_menu.addAction(actions.exit)
 
         edit_menu = menu_bar.addMenu("&Edit")
-        edit_menu.addAction(actions.generate)
+        edit_menu.addAction(actions.dream_image)
+        edit_menu.addAction(actions.dream_sequence)
         edit_menu.addSeparator()
         edit_menu.addAction(actions.use_as_input_image)
         edit_menu.addAction(actions.open_input_image)
@@ -107,28 +115,41 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self._status_progress, 1)
 
     def _createDockPanels(self):
-        actions = self._engine.actions
         dream = self._engine.dream
 
         self._library_panel = LibraryPanel()
         self.addDockWidget(Qt.LeftDockWidgetArea, self._library_panel)
 
-        self._settings_panel = SettingsPanel(dream.constants, dream.keys[0].variables)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._settings_panel)
+        self._settings_view = GeneratorSettingsView(dream.keys[0].settings)
+        self.addDockWidget(Qt.RightDockWidgetArea, ScrollPanel("Generator", self._settings_view))
 
-        self._input_panel = InputPanel(dream.constants, dream.keys[0].variables)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self._input_panel)
+        self._output_view = OutputSettingsView(dream.output)
+        self.addDockWidget(Qt.RightDockWidgetArea, ScrollPanel("Output", self._output_view))
 
-        self._dream_panel = DreamPanel(self._engine, self._settings_panel, self._input_panel)
-        self._dream_panel.generate.connect(actions.generate.trigger)
-        self.addDockWidget(Qt.RightDockWidgetArea, self._dream_panel)
+        self._input_view = GeneratorInputView(dream.keys[0].settings)
+        self.addDockWidget(Qt.BottomDockWidgetArea, DockPanel("Input", self._input_view))
+
+        self._control_view = DreamControlView(self._engine, self._output_view, self._settings_view, self._input_view)
+        self.addDockWidget(Qt.RightDockWidgetArea, DockPanel("Dream", self._control_view))
 
     @Slot()
-    def _close_image(self):
+    def close_image(self):
         pass
 
+    @Slot()
+    def import_image_and_data(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Image and Data", filter="Image/Data Files (*.png *.jpg *.json)")
+        if file_path:
+            active_document = self._engine.documents.active_document
+            if type(active_document) is DreamImageDocument:
+                active_document.import_images_and_data(file_path)
+            else:
+                document = DreamImageDocument()
+                if document.import_images_and_data(file_path):
+                    self._engine.documents.add_image_document(document)
+
     @Slot(DreamProgress)
-    def _progress_update(self, progress: DreamProgress):
+    def update_progress(self, progress: DreamProgress):
         self._status_label.setText(progress.text)
 
         if progress.state == DreamerState.DREAMING:
