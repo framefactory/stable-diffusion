@@ -7,5 +7,3 @@ from .generator import Generator
 from .documents import Documents
 
 from .dream_document import DreamDocument
-from .dream_image_document import DreamImageDocument
-from .dream_sequence_document import DreamSequenceDocument

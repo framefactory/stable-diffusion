@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from dataclasses import dataclass, field, asdict
+from sortedcontainers import SortedDict
 from dacite.core import from_dict
 
 
@@ -92,8 +93,8 @@ class DreamImage:
 @dataclass
 class GeneratorKey:
     frame: int
-    interpolation: str = "linear"
     settings: GeneratorSettings = GeneratorSettings()
+    interpolation: str = "linear"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -107,12 +108,20 @@ class GeneratorKey:
 class DreamSequence:
     path: str = ""
     length: int = 1
-    keys: List[GeneratorKey] = field(default_factory=list)
+    keys: List[GeneratorKey] = field(default_factory=lambda: [ GeneratorKey(0) ])
     output: OutputSettings = OutputSettings()
+
+    @property
+    def count(self) -> int:
+        return len(self.keys)
 
     def interpolate(self, frame: int) -> GeneratorSettings:
         keys = self.keys
         count = len(keys)
+
+        if count < 1:
+            return GeneratorSettings()
+
         left_key = keys[count - 1]
         right_key = None
 

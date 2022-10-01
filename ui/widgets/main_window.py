@@ -20,7 +20,7 @@ from ui.app import (
     DreamerState,    
     DreamProgress
 )
-from ui.app.dream_image_document import DreamImageDocument
+from ui.app import DreamDocument
 
 from .document_area import DocumentArea
 from .library_panel import LibraryPanel
@@ -141,12 +141,12 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Open Image and Data", filter="Image/Data Files (*.png *.jpg *.json)")
         if file_path:
             active_document = self._engine.documents.active_document
-            if type(active_document) is DreamImageDocument:
+            if active_document:
                 active_document.import_images_and_data(file_path)
             else:
-                document = DreamImageDocument()
+                document = DreamDocument()
                 if document.import_images_and_data(file_path):
-                    self._engine.documents.add_image_document(document)
+                    self._engine.documents.add_document(document)
 
     @Slot(DreamProgress)
     def update_progress(self, progress: DreamProgress):

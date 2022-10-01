@@ -6,8 +6,6 @@ from PySide6.QtCore import QObject, Signal, Slot
 from ui.data import Preferences, DreamImage, DreamSequence, GeneratorKey
 
 from .dream_document import DreamDocument
-from .dream_image_document import DreamImageDocument
-from .dream_sequence_document import DreamSequenceDocument
 
 #from ui.widgets import ImageDocumentView
 
@@ -58,11 +56,11 @@ class Engine(QObject):
 
     @Slot()
     def _document_changed(self, document: DreamDocument):
-        if type(document) is DreamImageDocument:
-            dream_image = deepcopy(document.dream_image)
-            self.dream.output = dream_image.output
-            self.dream.keys[0].settings = dream_image.generator
-            self.dream_changed.emit()
+        pass
+        #dream_image = deepcopy(document.dream_image)
+        #self.dream.output = dream_image.output
+        #self.dream.keys[0].settings = dream_image.generator
+        #self.dream_changed.emit()
 
     @Slot()
     def _new_image(self):

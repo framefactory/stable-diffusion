@@ -24,6 +24,8 @@ torchmetrics==0.6.0
 transformers==4.19.2
 # UI
 PySide6==6.3.2
+dacite==1.6.0
+sortedcontainers==2.4.0
 git+https://github.com/openai/CLIP.git@main#egg=clip
 git+https://github.com/lstein/k-diffusion.git@master#egg=k-diffusion
 git+https://github.com/lstein/GFPGAN@fix-dark-cast-images#egg=gfpgan
