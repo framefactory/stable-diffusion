@@ -4,7 +4,7 @@ import torch
 from PIL.Image import Image
 from ldm.generate import Generate
 
-from ui.data import ModelParams, DreamImage
+from ui.data import ModelParams, DreamStill
 
 
 StepCallback = Callable[[torch.Tensor, int], None]
@@ -18,7 +18,7 @@ class Generator:
     def load(self):
         self._pipeline.load_model()
 
-    def generate(self, dream: DreamImage) -> Tuple[Image, Image]:
+    def generate(self, dream: DreamStill) -> Tuple[Image, Image]:
         output = dream.output
         generator = dream.generator
 

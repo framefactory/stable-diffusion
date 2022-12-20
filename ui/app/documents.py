@@ -5,46 +5,47 @@ from PySide6.QtCore import QObject, Signal, Slot
 from ui.data import DreamSequence
 
 from .dreamer import DreamResult
-from .dream_document import DreamDocument
+from .dream_still_document import DreamStillDocument
 
 
 class Documents(QObject):
-    document_added = Signal(DreamDocument)
-    active_document_changed = Signal(DreamDocument)
+    document_added = Signal(DreamStillDocument)
+    active_document_changed = Signal(DreamStillDocument)
 
     def __init__(self, parent: QObject):
         super().__init__(parent)
 
-        self._documents: List[DreamDocument] = []
-        self._active_document: Optional[DreamDocument] = None
+        self._base_path = "library"
+        self._documents: List[DreamStillDocument] = []
+        self._active_document: Optional[DreamStillDocument] = None
 
     @property
-    def active_document(self) -> Optional[DreamDocument]:
+    def active_document(self) -> Optional[DreamStillDocument]:
         return self._active_document
 
     @Slot(DreamResult)
-    def add_generated_image(self, result: DreamResult):
+    def add_generated_frame(self, result: DreamResult):
         document = self._active_document
-        if document:
-            document.set_images(result.dream_image, result.final_image, result.raw_image)
-        else:
-            new_document = DreamDocument()
-            new_document.set_images(result.dream_image, result.final_image, result.raw_image)
-            self.add_document(new_document)
+        assert(document)
+        document.add_generated_frame(result)
 
-    def add_document(self, document: DreamDocument):
+    @Slot()
+    def new_document(self):
+        self.add_document(DreamStillDocument(self._base_path))
+
+    def add_document(self, document: DreamStillDocument):
         document.setParent(self)
         document.changed.connect(self._document_changed)
         self._documents.append(document)
         self.document_added.emit(document)
         self.set_active_document(document)
 
-    def set_active_document(self, document: DreamDocument):
+    def set_active_document(self, document: DreamStillDocument):
         self._active_document = document
         self.active_document_changed.emit(document)
 
-    @Slot(DreamDocument)
-    def _document_changed(self, document: DreamDocument):
+    @Slot(DreamStillDocument)
+    def _document_changed(self, document: DreamStillDocument):
         if document is self.active_document:
             self.active_document_changed.emit(document)
 

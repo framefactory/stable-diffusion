@@ -3,9 +3,9 @@ from copy import deepcopy
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from ui.data import Preferences, DreamImage, DreamSequence, GeneratorKey
+from ui.data import Preferences, DreamStill, DreamSequence, GeneratorKey
 
-from .dream_document import DreamDocument
+from .dream_still_document import DreamStillDocument
 
 #from ui.widgets import ImageDocumentView
 
@@ -25,13 +25,11 @@ class Engine(QObject):
         self.preferences = Preferences()
         self.documents = Documents(self)
         self.documents.active_document_changed.connect(self._document_changed)
+        self.documents.new_document()
+
         self.library = Library(self, self.preferences)
         self.dreamer = Dreamer(self, self.preferences, self.library)
-        self.dreamer.image_ready.connect(self.documents.add_generated_image)
-
-        self.dream = DreamSequence()
-        self.dream.keys.append(GeneratorKey(0))
-        self.dream.keys.append(GeneratorKey(1))
+        self.dreamer.image_ready.connect(self.documents.add_generated_frame)
 
         actions = self.actions
         actions.new_image.triggered.connect(self._new_image) #type:ignore
@@ -46,16 +44,17 @@ class Engine(QObject):
     def stop(self):
         self.dreamer.stop()
 
-    def dream_image(self):
-        generator = self.dream.keys[0].settings
-        dream = DreamImage("", generator, self.dream.output)
+    def dream_still(self):
+        document = self.documents.active_document
+        assert(document)
+        dream = DreamStill(document.path, document.generator, document.output)
         self.dreamer.dream(dream)
 
     def dream_sequence(self):
-        self.dreamer.dream(self.dream)
+        document = self.documents.active_document
 
     @Slot()
-    def _document_changed(self, document: DreamDocument):
+    def _document_changed(self, document: DreamStillDocument):
         pass
         #dream_image = deepcopy(document.dream_image)
         #self.dream.output = dream_image.output

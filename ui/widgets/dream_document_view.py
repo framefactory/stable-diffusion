@@ -19,11 +19,11 @@ from PySide6.QtWidgets import (
     QSizePolicy
 )
 
-from ui.app import DreamDocument
+from ui.app import DreamStillDocument
 
 
 class DreamDocumentView(QMdiSubWindow):
-    def __init__(self, parent: QWidget, document: DreamDocument):
+    def __init__(self, parent: QWidget, document: DreamStillDocument):
         super().__init__(parent)
 
         self.document = document

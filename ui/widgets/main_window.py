@@ -20,7 +20,7 @@ from ui.app import (
     DreamerState,    
     DreamProgress
 )
-from ui.app import DreamDocument
+from ui.app import DreamStillDocument
 
 from .document_area import DocumentArea
 from .library_panel import LibraryPanel
@@ -29,7 +29,7 @@ from .generator_input_view import GeneratorInputView
 from .generator_settings_view import GeneratorSettingsView
 from .output_settings_view import OutputSettingsView
 from .dream_control_view import DreamControlView
-
+from .system_info_view import SystemInfoView
 
 class DockPanel(QDockWidget):
     def __init__(self, title: str, widget: QWidget):
@@ -117,16 +117,19 @@ class MainWindow(QMainWindow):
     def _createDockPanels(self):
         dream = self._engine.dream
 
+        self._system_view = SystemInfoView()
+        self.addDockWidget(Qt.LeftDockWidgetArea, ScrollPanel("System Info", self._system_view))
+
         self._library_panel = LibraryPanel()
         self.addDockWidget(Qt.LeftDockWidgetArea, self._library_panel)
 
-        self._settings_view = GeneratorSettingsView(dream.keys[0].settings)
+        self._settings_view = GeneratorSettingsView(dream.keys[0].generator)
         self.addDockWidget(Qt.RightDockWidgetArea, ScrollPanel("Generator", self._settings_view))
 
         self._output_view = OutputSettingsView(dream.output)
         self.addDockWidget(Qt.RightDockWidgetArea, ScrollPanel("Output", self._output_view))
 
-        self._input_view = GeneratorInputView(dream.keys[0].settings)
+        self._input_view = GeneratorInputView(dream.keys[0].generator)
         self.addDockWidget(Qt.BottomDockWidgetArea, DockPanel("Input", self._input_view))
 
         self._control_view = DreamControlView(self._engine, self._output_view, self._settings_view, self._input_view)
@@ -144,7 +147,7 @@ class MainWindow(QMainWindow):
             if active_document:
                 active_document.import_images_and_data(file_path)
             else:
-                document = DreamDocument()
+                document = DreamStillDocument()
                 if document.import_images_and_data(file_path):
                     self._engine.documents.add_document(document)
 

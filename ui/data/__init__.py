@@ -4,7 +4,7 @@ from .dream import (
     GeneratorSettings,
     OutputSettings,
     GeneratorKey,
-    DreamImage,
+    DreamStill,
     DreamSequence
 )
 

@@ -1,8 +1,9 @@
-from typing import Tuple
+from typing import Optional
 from pathlib import Path
 from datetime import datetime
 import os
 
+from PIL import Image as PIL_Image
 from PIL.Image import Image
 
 from PySide6.QtCore import (
@@ -44,3 +45,13 @@ class Library(QObject):
             file_path = base + suffix + (("." + extension) if extension else ext)
 
         return str(Path(folder) / file_path)
+
+    @staticmethod
+    def load_image(path: str) -> Optional[Image]:
+        try:
+            with PIL_Image.open(path) as image:
+                image.load()
+                return image
+        except:
+            print(f"failed to load image from: {path}")
+            return None

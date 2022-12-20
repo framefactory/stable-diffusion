@@ -6,4 +6,4 @@ from .dreamer import Dreamer, DreamerState, DreamProgress, DreamResult
 from .generator import Generator
 from .documents import Documents
 
-from .dream_document import DreamDocument
+from .dream_still_document import DreamStillDocument

@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QWidget, QMdiArea
 
 from ui.app import (
-    DreamDocument, 
+    DreamStillDocument, 
     Documents
 )
 
@@ -24,16 +24,16 @@ class DocumentArea(QMdiArea):
         self.setTabsMovable(True)
         self.setTabsClosable(True)
 
-    @Slot(DreamDocument)
-    def create_view(self, document: DreamDocument) -> DreamDocumentView:
+    @Slot(DreamStillDocument)
+    def create_view(self, document: DreamStillDocument) -> DreamDocumentView:
         print("create document view")
         image_view = DreamDocumentView(self, document)
         self.addSubWindow(image_view)
         image_view.showMaximized()
         return image_view
 
-    @Slot(DreamDocument)
-    def set_active_document(self, document: DreamDocument):
+    @Slot(DreamStillDocument)
+    def set_active_document(self, document: DreamStillDocument):
         views = self.subWindowList()
         for view in views:
             document_view = cast(DreamDocumentView, view)

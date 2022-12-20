@@ -1,102 +1,137 @@
-from typing import List, Any, Optional
-from copy import copy
-import traceback
+from typing import List, Optional
+from enum import Enum
 import json
 import os
 
-from PIL import Image as PIL_Image
-from PIL.Image import Image
 from PySide6.QtCore import QObject, Signal
 
-from ui.data import DreamImage, DreamSequence, GeneratorKey
+from ui.data import (
+    GeneratorSettings,
+    OutputSettings,
+    DreamStill,
+    DreamSequence,
+    GeneratorKey
+)
 
 from .library import Library
+from .dreamer import DreamResult
+from .dream_frame import DreamFrame
 
+# class DreamDocumentChange(Enum):
+#     all = "all"
+#     current = "current"
+#     history = "history"
 
 class DreamDocument(QObject):
-    changed = Signal(QObject)
+    changed = Signal()
 
-    def __init__(self, dream_sequence: DreamSequence = DreamSequence()):
+    def __init__(self, base_path: str, sequence = DreamSequence(),
+        history: List[DreamFrame] = []):
+
         super().__init__()
 
-        self._dream_sequence = dream_sequence
+        self._base_path = base_path
+        self._sequence = sequence
 
-        self._current_frame = 0
-        self._current_generator = dream_sequence.interpolate(self._current_frame)
+        first_key = sequence.keys[0]
+        self._generator = first_key.generator
+        self._frame = first_key.frame
+        self._begin = 0
+        self._end = sequence.count
 
-        self._final_image: Optional[Image] = None
-        self._raw_image: Optional[Image] = None
+        # history of generated frames
+        self._history: List[DreamFrame] = []
 
-    def set_images(self, dream_image: DreamImage, final_image: Image, raw_image: Image):
-        self._dream_sequence.path = dream_image.path
-        self._dream_sequence.output = dream_image.output
-        self._dream_sequence.keys = [ GeneratorKey(0, dream_image.generator) ]
+        # the active frame from history
+        self._active_index: int = -1
+        self._active_frame: Optional[DreamFrame] = None
 
-        self._final_image = final_image
-        self._raw_image = raw_image
+    @property
+    def path(self) -> str:
+        return self._sequence.path
 
-        self.changed.emit(self)
+    @property
+    def output(self) -> OutputSettings:
+        return self._sequence.output
 
-    def import_images_and_data(self, path: str) -> bool:
+    @property
+    def generator(self) -> GeneratorSettings:
+        return self._generator
+
+    @property
+    def active_frame(self) -> Optional[DreamFrame]:
+        return self._active_frame
+
+    @property
+    def history_size(self) -> int:
+        return len(self._history)
+
+    def set_frame_current(self, index: int, *, force=False):
+        frame = self._history[index]
+        if frame.final_image is None:
+            frame.load_images(self._base_path, force=force)
+
+        self._active_frame = frame
+        self._active_index = index
+        self.changed.emit()
+
+    def add_generated_frame(self, result: DreamResult):
+        self.add_frame(result.still, result.final_image, result.raw_image)
+
+    def add_frame(self, still: DreamStill, final_image: Image,
+        raw_image: Optional[Image] = None):
+
+        still.generator.seed_a_randomize = False
+        still.generator.seed_b_randomize = False
+
+        frame = DreamFrame.from_still_with_images(still, final_image, raw_image)
+        index = self.history_size
+        self._history.append(frame)
+        self.set_frame_current(index)
+
+    def import_frame(self, path: str) -> bool:
+        still = None
+        final_image = None
+        raw_image = None
+
+        json_path = Library.compose_path(path, extension="json")
         try:
-            dream_image = None
-            final_image = None
-            raw_image = None
-
-            json_path = Library.compose_path(path, extension="json")
-            if os.path.exists(json_path):
-                with open(json_path) as json_file:
-                    data = json.load(json_file)
-                    dream_image = DreamImage.from_dict(data)
-                    dream_image.generator.seed_randomize = False
-
-            extension = self._dream_sequence.output.format
-            image_path = Library.compose_path(path, extension=extension)
-            if os.path.exists(image_path):
-                with PIL_Image.open(image_path) as final_image:
-                    final_image.load()
-
-            raw_image_path = Library.compose_path(image_path, suffix=".raw")
-            if os.path.exists(raw_image_path):
-                with PIL_Image.open(raw_image_path) as raw_image:
-                    raw_image.load()
-
-            if dream_image and final_image:
-                self._dream_sequence = DreamSequence(
-                    path = dream_image.path,
-                    length = 1,
-                    keys = [ GeneratorKey(0, dream_image.generator )],
-                    output = dream_image.output
-                )
-                self._dream_image = dream_image
-                self._final_image = final_image
-                self._raw_image = raw_image
-                self.changed.emit(self)
-                return True
-
+            with open(json_path) as json_file:
+                data = json.load(json_file)
+                still = DreamStill.from_dict(data)
         except:
-            traceback.print_exc()
-            print(f"failed to load image and/or data from: {path}")
+            print(f"failed to open json file: {json_path}")
+            return False
 
-        return False
+        base_path = os.path.dirname(json_path)
+        image_path = Library.compose_path(base_path, extension=still.output.format)
+        final_image = Library.load_image(image_path)
+        if final_image is None:
+            return False
 
-    def clear_images(self):
-        self.final_image = None
-        self.raw_image = None
+        raw_image_path = Library.compose_path(image_path, suffix=".raw")
+        raw_image = Library.load_image(raw_image_path)
 
-    def to_dict(self):
-        data = self._dream_sequence.to_dict()
-        return data
+        self.add_frame(still, final_image, raw_image)
+        return True
+
+    def clear_image_cache(self):
+        for frame in self._history:
+            frame.final_image = None
+            frame.raw_image = None
+
+    def to_dict(self) -> dict:
+        return {
+            "history": [ frame.still.to_dict() for frame in self._history ]
+        }
 
     @staticmethod
-    def from_dict(data: dict) -> 'DreamDocument':
-        sequence = DreamSequence.from_dict(data)
-        document = DreamDocument(sequence)
-        return document
+    def from_dict(base_path: str, data: dict) -> 'DreamDocument':
+        document = DreamDocument(base_path)
 
-    @staticmethod
-    def from_dream_image(dream_image: DreamImage) -> 'DreamDocument':
-        key = GeneratorKey(0, dream_image.generator)
-        sequence = DreamSequence(output=dream_image.output, keys=[ key ])
-        document = DreamDocument(sequence)
+        stills = [ DreamStill.from_dict(s) for s in data["history"]]
+        document._history = [ DreamFrame.from_still(base_path, still) for still in stills ]
+        if document.history_size > 0:
+            document.set_frame_current(0)
+
         return document

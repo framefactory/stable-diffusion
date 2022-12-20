@@ -12,7 +12,7 @@ from PIL.Image import Image
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from ui.data import Preferences, DreamImage, DreamSequence, GeneratorSettings
+from ui.data import Preferences, DreamStill, DreamSequence, GeneratorSettings
 
 from .generator import Generator
 from .library import Library
@@ -36,12 +36,12 @@ class DreamProgress:
 
 @dataclass
 class DreamResult:
-    dream_image: DreamImage
+    still: DreamStill
     final_image: Image
     raw_image: Image
 
 
-Dream = Union[DreamImage, DreamSequence]
+Dream = Union[DreamStill, DreamSequence]
 
 
 class Dreamer(QThread):
@@ -81,11 +81,11 @@ class Dreamer(QThread):
                 if not dream.path:
                     dream.path = Library.generate_file_path()
 
-                if type(dream) is DreamImage:
+                if type(dream) is DreamStill:
                     self._current_generator = dream.generator
                     self._current_frame = 0
 
-                    dream_image = DreamImage(dream.path, dream.generator, dream.output)
+                    dream_image = DreamStill(dream.path, dream.generator, dream.output)
                     final_image, raw_image = self._generator.generate(dream_image)
                     result = self._save_generated(dream_image, final_image, raw_image)
                     self.image_ready.emit(result)
@@ -101,7 +101,7 @@ class Dreamer(QThread):
                         root, ext = os.path.splitext(dream.path)
                         file_path = f"{root}_{frame_index:04}{ext}"
 
-                        dream_image = DreamImage(file_path, self._current_generator, dream.output)
+                        dream_image = DreamStill(file_path, self._current_generator, dream.output)
                         final_image, raw_image = self._generator.generate(dream_image)
                         result = self._save_generated(dream_image, final_image, raw_image)
                         self.image_ready.emit(result)
@@ -121,7 +121,7 @@ class Dreamer(QThread):
         generator = cast(GeneratorSettings, self._current_generator)
         progress = None
 
-        if type(dream) is DreamImage:
+        if type(dream) is DreamStill:
             progress = DreamProgress(DreamerState.DREAMING, "Dreaming...",
                 step, generator.steps)
 
@@ -137,7 +137,7 @@ class Dreamer(QThread):
         progress = DreamProgress(state, text)
         self.progress_update.emit(progress)
 
-    def _save_generated(self, dream: DreamImage, final_image: Image, raw_image: Image) -> DreamResult:
+    def _save_generated(self, dream: DreamStill, final_image: Image, raw_image: Image) -> DreamResult:
         image_ext = dream.output.format
 
         final_file_path = self._library.compose_library_path(dream.path, extension=image_ext)

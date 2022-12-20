@@ -24,7 +24,8 @@ class DreamControlView(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
 
         self._engine = engine
-        engine.dream_changed.connect(self._dream_changed)
+        self._document = engine.documents.active_document
+        engine.documents.active_document_changed.connect(self._document_changed)
 
         self._output_view = output_view
         self._settings_view = settings_view
@@ -51,10 +52,12 @@ class DreamControlView(QWidget):
         cmd_layout = QVBoxLayout()
         main_layout.addLayout(cmd_layout)
 
-        self._iterations_control = SpinBoxControl("Iterations",
-            self._engine.dream, "length", 1, 10000)
-        self._iterations_control.changed.connect(self._iterations_changed)
-        cmd_layout.addWidget(self._iterations_control)
+        
+
+        # self._iterations_control = SpinBoxControl("Iterations",
+        #     self._document.dream, "length", 1, 10000)
+        # self._iterations_control.changed.connect(self._iterations_changed)
+        # cmd_layout.addWidget(self._iterations_control)
 
         button_layout = QHBoxLayout()
         cmd_layout.addLayout(button_layout)
@@ -70,48 +73,47 @@ class DreamControlView(QWidget):
         main_layout.addStretch()
         self.setLayout(main_layout)
 
-    @Slot()
-    def _key0_clicked(self):
-        settings = self._engine.dream.keys[0].settings
-        self._settings_view.update(settings)
-        self._input_view.update(settings)
+    # @Slot()
+    # def _key0_clicked(self):
+    #     settings = self._engine.dream.keys[0].generator
+    #     self._settings_view.update(settings)
+    #     self._input_view.update(settings)
 
-    @Slot()
-    def _key1_clicked(self):
-        settings = self._engine.dream.keys[1].settings
-        self._settings_view.update(settings)
-        self._input_view.update(settings)
+    # @Slot()
+    # def _key1_clicked(self):
+    #     settings = self._engine.dream.keys[1].generator
+    #     self._settings_view.update(settings)
+    #     self._input_view.update(settings)
 
-    @Slot()
-    def _copy0to1_clicked(self):
-        dream = self._engine.dream
-        dream.keys[1].settings = copy(dream.keys[0].settings)
-        self._key1_clicked()
+    # @Slot()
+    # def _copy0to1_clicked(self):
+    #     dream = self._engine.dream
+    #     dream.keys[1].generator = copy(dream.keys[0].generator)
+    #     self._key1_clicked()
 
-    @Slot()
-    def _copy1to0_clicked(self):
-        dream = self._engine.dream
-        dream.keys[0].settings = copy(dream.keys[1].settings)
-        self._key0_clicked()
+    # @Slot()
+    # def _copy1to0_clicked(self):
+    #     dream = self._engine.dream
+    #     dream.keys[0].generator = copy(dream.keys[1].generator)
+    #     self._key0_clicked()
 
-    @Slot(int)
-    def _iterations_changed(self, value: int):
-        self._engine.dream.keys[1].frame = max(1, value - 1)
+    # @Slot(int)
+    # def _iterations_changed(self, value: int):
+    #     self._engine.dream.keys[1].frame = max(1, value - 1)
 
     @Slot()
     def _generate_image_clicked(self):
         self._settings_view.randomize_seed()
-        self._engine.dream_image()
+        self._engine.dream_still()
 
     @Slot()
     def _generate_sequence_clicked(self):
         self._engine.dream_sequence()
 
     @Slot()
-    def _dream_changed(self):
-        output = self._engine.dream.output
-        self._output_view.update(output)
-
-        settings = self._engine.dream.keys[0].settings
-        self._settings_view.update(settings)
-        self._input_view.update(settings)
+    def _document_changed(self):
+        document = self._engine.documents.active_document
+        assert(document)
+        self._output_view.update(document.output)
+        self._settings_view.update(document.generator)
+        self._input_view.update(document.generator)
